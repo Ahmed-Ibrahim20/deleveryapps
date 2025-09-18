@@ -16,7 +16,12 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
   String searchQuery = '';
   Map<String, dynamic>? userData;
   List<Map<String, dynamic>> orders = [];
+  List<Map<String, dynamic>> allOrders = <Map<String, dynamic>>[];
   bool isLoading = true;
+
+  // Date filter variables
+  DateTime? fromDate;
+  DateTime? toDate;
 
   @override
   void initState() {
@@ -99,17 +104,19 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
             // For delivery users (role = 1): filter by delivery_id
             if (currentUserRole == 1) {
               final orderDeliveryId = order['delivery_id'];
-              return orderStatus == 2 && orderDeliveryId == currentUserId;
-            } 
+              return orderStatus == 1 && orderDeliveryId == currentUserId;
+            }
             // For store users (role = 2): filter by user_add_id
             else {
               final orderUserAddId = order['user_add_id'];
-              return orderStatus == 2 && orderUserAddId == currentUserId;
+              return orderStatus == 1 && orderUserAddId == currentUserId;
             }
           }).toList();
 
           setState(() {
-            orders = filteredOrders;
+            this.allOrders.clear();
+            this.allOrders.addAll(filteredOrders);
+            orders = List<Map<String, dynamic>>.from(filteredOrders); // Add this line!
             isLoading = false;
           });
 
@@ -123,6 +130,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
       });
     } catch (e) {
       setState(() {
+        allOrders = [];
         orders = [];
         isLoading = false;
       });
@@ -147,7 +155,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
           appBar: AppBar(
             centerTitle: true,
             title: const Text(
-              'الطلبات الجارية',
+              'الطلبات الجديدة',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -173,7 +181,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
           appBar: AppBar(
             centerTitle: true,
             title: const Text(
-              'الطلبات الجارية',
+              'الطلبات الجديدة',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -241,7 +249,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
           child: Column(
             children: [
               // User Info Card
-            /*  Card(
+              /*  Card(
                 margin: const EdgeInsets.all(12),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -352,7 +360,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
 
   Widget _buildOrdersList() {
     // Filter orders based on search
-    final filteredOrders = orders.where((order) {
+    final filteredOrders = allOrders.where((order) {
       if (searchQuery.isEmpty) return true;
 
       final orderId = order['id']?.toString().toLowerCase() ?? '';
@@ -380,7 +388,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
             Text(
               searchQuery.isNotEmpty
                   ? 'لا توجد نتائج للبحث'
-                  : 'لا توجد طلبات جارية حالياً',
+                  : 'لا توجد طلبات جديدة حالياً',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -391,7 +399,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
             Text(
               searchQuery.isNotEmpty
                   ? 'جرب البحث بكلمات أخرى'
-                  : 'ستظهر هنا الطلبات المقبولة للتوصيل',
+                  : 'ستظهر هنا الطلبات الجديدة المتاحة',
               style: const TextStyle(fontSize: 14, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
@@ -459,7 +467,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.green,
+                    color: Colors.orange,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text(
@@ -505,7 +513,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
                   Text(
                     order['customer_phone'] ?? 'غير محدد',
                     style: TextStyle(
-                      fontSize: 13, 
+                      fontSize: 13,
                       color: Colors.blue,
                       decoration: TextDecoration.underline,
                     ),
@@ -536,7 +544,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
             const SizedBox(height: 8),
             Divider(color: Colors.grey.shade300, height: 1),
             const SizedBox(height: 8),
-            
+
             // For delivery users (role = 1): show store info (added_by)
             if (currentUserRole == 1 && addedBy != null) ...[
               Row(
@@ -616,11 +624,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
               children: [
                 Row(
                   children: [
-                    Icon(
-                      Icons.local_shipping,
-                      color: Colors.orange,
-                      size: 16,
-                    ),
+                    Icon(Icons.local_shipping, color: Colors.orange, size: 16),
                     const SizedBox(width: 4),
                     const Text(
                       'رسوم التوصيل:',

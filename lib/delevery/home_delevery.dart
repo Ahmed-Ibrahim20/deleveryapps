@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../store/order_detailes_shope.dart';
 import '../store/previousordersscreen_shope.dart';
 import '../store/Profileshope.dart';
+import './order_screen.dart';
+import '../services/Api/order_service.dart';
 
 class DriverHomePage extends StatefulWidget {
   final String phone;
@@ -13,13 +16,107 @@ class DriverHomePage extends StatefulWidget {
 }
 
 class _DriverHomePageState extends State<DriverHomePage> {
-  String name = 'مرحباً، مستخدم'; // اسم ثابت بدل جلبه من Firebase
-  int unreadCount = 0; // عداد إشعارات ثابت
+  String name = 'مرحباً، مستخدم';
+  Map<String, dynamic>? userData;
+  int newOrdersCount = 0;
+  int currentOrdersCount = 0;
+  int completedOrdersCount = 0;
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // مفيش Firebase هنا، كله ديزاين بس
+    _loadUserDataAndCounts();
+  }
+
+  Future<void> _loadUserDataAndCounts() async {
+    try {
+      // Get user data from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final userName = prefs.getString('name') ?? 'مستخدم';
+      final userPhone = prefs.getString('phone') ?? widget.phone;
+      final userRole = prefs.getInt('role') ?? 0;
+      final userId = prefs.getInt('user_id') ?? 0;
+      final userEmail = prefs.getString('email') ?? '';
+      final isApproved = prefs.getBool('is_approved') ?? false;
+      final isActive = prefs.getBool('is_active') ?? false;
+
+      setState(() {
+        name = 'مرحباً، $userName';
+        userData = {
+          'id': userId,
+          'name': userName,
+          'phone': userPhone,
+          'email': userEmail,
+          'role': userRole,
+          'is_approved': isApproved,
+          'is_active': isActive,
+        };
+      });
+
+      // Load order counts
+      await _loadOrderCounts();
+    } catch (e) {
+      print('❌ خطأ في تحميل بيانات المستخدم: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadOrderCounts() async {
+    if (userData == null) return;
+
+    try {
+      final orderService = OrderService();
+      final response = await orderService.getAllOrders();
+
+      if (response.statusCode == 200 && response.data != null) {
+        final responseData = response.data['data'];
+        if (responseData != null && responseData['data'] is List) {
+          final allOrders = List<Map<String, dynamic>>.from(responseData['data']);
+          final currentUserId = userData!['id'];
+
+          // Count orders for delivery user
+          int newCount = 0;
+          int currentCount = 0;
+          int completedCount = 0;
+
+          for (final order in allOrders) {
+            final orderStatus = order['status'];
+            final orderDeliveryId = order['delivery_id'];
+
+            switch (orderStatus) {
+              case 0: // New orders available for all delivery users
+                newCount++;
+                break;
+              case 1: // Orders accepted by this delivery user
+                if (orderDeliveryId == currentUserId) {
+                  currentCount++;
+                }
+                break;
+              case 2: // Orders completed by this delivery user
+                if (orderDeliveryId == currentUserId) {
+                  completedCount++;
+                }
+                break;
+            }
+          }
+
+          setState(() {
+            newOrdersCount = newCount;
+            currentOrdersCount = currentCount;
+            completedOrdersCount = completedCount;
+            isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('❌ خطأ في تحميل عدد الطلبات: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
   @override
@@ -41,7 +138,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
           ),
           centerTitle: true,
           actions: [
-          /* DeliveryNotificationBadge(
+            /* DeliveryNotificationBadge(
               onTap: () async {
                 await Navigator.push(
                   context,
@@ -59,7 +156,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
         body: SafeArea(
           child: RefreshIndicator(
             onRefresh: () async {
-              // Refresh ديزاين بس، مش هنعمل حاجة
+              await _loadUserDataAndCounts();
             },
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -77,6 +174,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                               _buildCard(
                                 context: context,
                                 title: 'الطلبات الجديدة',
+                                subtitle: '$newOrdersCount طلب جديد',
                                 icon: Icons.sync,
                                 color: Colors.blue,
                               ),
@@ -84,6 +182,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                               _buildCard(
                                 context: context,
                                 title: 'الطلبات السابقة',
+                                subtitle: '$completedOrdersCount طلب مكتمل',
                                 icon: Icons.description_outlined,
                                 color: Colors.green,
                               ),
@@ -97,6 +196,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                               _buildCard(
                                 context: context,
                                 title: 'الطلبات الجارية',
+                                subtitle: '$currentOrdersCount طلب جاري',
                                 icon: Icons.inventory_2_outlined,
                                 color: Colors.amber,
                               ),
@@ -104,6 +204,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                               _buildCard(
                                 context: context,
                                 title: 'تقارير',
+                                subtitle: 'إحصائيات شاملة',
                                 icon: Icons.bar_chart,
                                 color: Colors.green.shade800,
                               ),
@@ -111,6 +212,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                               _buildCard(
                                 context: context,
                                 title: 'البروفايل',
+                                subtitle: 'إعدادات الحساب',
                                 icon: Icons.person,
                                 color: Colors.indigo,
                               ),
@@ -132,6 +234,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
   Widget _buildCard({
     required BuildContext context,
     required String title,
+    required String subtitle,
     required IconData icon,
     required Color color,
   }) {
@@ -141,16 +244,19 @@ class _DriverHomePageState extends State<DriverHomePage> {
       onTap: () {
         switch (title) {
           case 'الطلبات الجديدة':
-            // TODO: Add new orders screen later
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('الطلبات الجديدة - قريباً')),
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OrderScreenDesign(phone: widget.phone),
+              ),
             );
             break;
           case 'الطلبات السابقة':
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => PreviousOrdersScreenShope(phone: widget.phone),
+                builder: (context) =>
+                    PreviousOrdersScreenShope(phone: widget.phone),
               ),
             );
             break;
@@ -171,9 +277,11 @@ class _DriverHomePageState extends State<DriverHomePage> {
             );
             break;
           case 'تقارير':
-            // TODO: Add reports screen later
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('التقارير - قريباً')),
+              SnackBar(
+                content: Text('التقارير - قريباً\nإجمالي الطلبات المكتملة: $completedOrdersCount'),
+                backgroundColor: Colors.green.shade800,
+              ),
             );
             break;
         }
@@ -182,32 +290,57 @@ class _DriverHomePageState extends State<DriverHomePage> {
         elevation: 3,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Container(
-          height: 90,
+          height: 100,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                icon,
-                size: 28,
-                color: isSpecial ? Colors.black : Colors.white,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+              Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 24,
                     color: isSpecial ? Colors.black : Colors.white,
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isSpecial ? Colors.black : Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 8),
+              if (isLoading)
+                SizedBox(
+                  height: 12,
+                  width: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      isSpecial ? Colors.black : Colors.white,
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isSpecial ? Colors.black54 : Colors.white70,
+                  ),
+                ),
             ],
           ),
         ),

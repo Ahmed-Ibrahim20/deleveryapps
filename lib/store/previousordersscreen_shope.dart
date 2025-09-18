@@ -17,7 +17,12 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
   String searchQuery = '';
   Map<String, dynamic>? userData;
   List<Map<String, dynamic>> orders = [];
+  List<Map<String, dynamic>> allOrders = <Map<String, dynamic>>[];
   bool isLoading = true;
+
+  // Date filter variables
+  DateTime? fromDate;
+  DateTime? toDate;
 
   @override
   void initState() {
@@ -76,12 +81,12 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
       if (response.statusCode == 200 && response.data != null) {
         final responseData = response.data['data'];
         if (responseData != null && responseData['data'] is List) {
-          final allOrders = List<Map<String, dynamic>>.from(
+          final allOrdersFromApi = List<Map<String, dynamic>>.from(
             responseData['data'],
           );
 
           // Filter orders based on user role
-          final filteredOrders = allOrders.where((order) {
+          final filteredOrders = allOrdersFromApi.where((order) {
             final orderStatus = order['status'];
             final currentUserId = userData!['id'];
             final currentUserRole = userData!['role'];
@@ -90,7 +95,7 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
             if (currentUserRole == 1) {
               final orderDeliveryId = order['delivery_id'];
               return orderStatus == 3 && orderDeliveryId == currentUserId;
-            } 
+            }
             // For store users (role = 2): filter by user_add_id
             else {
               final orderUserAddId = order['user_add_id'];
@@ -99,7 +104,8 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
           }).toList();
 
           setState(() {
-            orders = filteredOrders;
+            allOrders = List<Map<String, dynamic>>.from(filteredOrders); // Store all orders
+            orders = List<Map<String, dynamic>>.from(filteredOrders); // Display all initially
             isLoading = false;
           });
 
@@ -108,11 +114,13 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
       }
 
       setState(() {
+        allOrders = [];
         orders = [];
         isLoading = false;
       });
     } catch (e) {
       setState(() {
+        allOrders = [];
         orders = [];
         isLoading = false;
       });
@@ -239,9 +247,129 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
           },
           child: Column(
             children: [
-              // Search bar
+              // Date Filter Section
               Padding(
                 padding: const EdgeInsets.all(12),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.date_range,
+                              color: Colors.blueAccent,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'فلترة بالتاريخ',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blueAccent,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (fromDate != null || toDate != null)
+                              TextButton(
+                                onPressed: _clearDateFilters,
+                                child: const Text(
+                                  'مسح',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => _selectDate(context, true),
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.calendar_today,
+                                        size: 16,
+                                        color: Colors.grey,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        fromDate != null
+                                            ? _formatDate(
+                                                fromDate!.toIso8601String(),
+                                              )
+                                            : 'من تاريخ',
+                                        style: TextStyle(
+                                          color: fromDate != null
+                                              ? Colors.black
+                                              : Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => _selectDate(context, false),
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.calendar_today,
+                                        size: 16,
+                                        color: Colors.grey,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        toDate != null
+                                            ? _formatDate(
+                                                toDate!.toIso8601String(),
+                                              )
+                                            : 'إلى تاريخ',
+                                        style: TextStyle(
+                                          color: toDate != null
+                                              ? Colors.black
+                                              : Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Search bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
@@ -251,15 +379,22 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
                   ),
                   child: TextField(
                     controller: _searchController,
-                    decoration: const InputDecoration(
-                      hintText: 'ابحث برقم الطلب أو اسم العميل...',
+                    decoration: InputDecoration(
+                      hintText: 'ابحث برقم الطلب أو اسم العميل أو الهاتف...',
                       border: InputBorder.none,
-                      icon: Icon(Icons.search, color: Colors.blueAccent),
+                      icon: const Icon(Icons.search, color: Colors.blueAccent),
+                      suffixIcon: searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, color: Colors.grey),
+                              onPressed: _clearSearch,
+                            )
+                          : null,
                     ),
                     onChanged: (value) {
                       setState(() {
-                        searchQuery = value;
+                        searchQuery = value.trim();
                       });
+                      _applyFilters();
                     },
                   ),
                 ),
@@ -277,18 +412,8 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
   }
 
   Widget _buildOrdersList() {
-    // Filter orders based on search
-    final filteredOrders = orders.where((order) {
-      if (searchQuery.isEmpty) return true;
-
-      final orderId = order['id']?.toString().toLowerCase() ?? '';
-      final customerName =
-          order['customer_name']?.toString().toLowerCase() ?? '';
-      final searchLower = searchQuery.toLowerCase();
-
-      return orderId.contains(searchLower) ||
-          customerName.contains(searchLower);
-    }).toList();
+    // Use the already filtered orders from _applyFilters()
+    final filteredOrders = orders;
 
     if (filteredOrders.isEmpty) {
       return Center(
@@ -345,6 +470,126 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
         );
       }
     }
+  }
+
+  // Format date to DD-MM-YYYY
+  String _formatDate(String dateString) {
+    try {
+      final DateTime date = DateTime.parse(dateString);
+      return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  // Date picker function
+  Future<void> _selectDate(BuildContext context, bool isFromDate) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: isFromDate
+          ? fromDate ?? DateTime.now()
+          : toDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      helpText: isFromDate ? 'اختر التاريخ من' : 'اختر التاريخ إلى',
+      cancelText: 'إلغاء',
+      confirmText: 'موافق',
+    );
+
+    if (picked != null) {
+      setState(() {
+        if (isFromDate) {
+          fromDate = picked;
+        } else {
+          toDate = picked;
+        }
+        _applyFilters();
+      });
+    }
+  }
+
+  // Apply date and search filters
+  void _applyFilters() {
+    List<Map<String, dynamic>> filteredOrders = List<Map<String, dynamic>>.from(allOrders);
+
+    // Apply date filter first
+    if (fromDate != null || toDate != null) {
+      filteredOrders = filteredOrders.where((order) {
+        try {
+          final createdAt = order['created_at']?.toString();
+          if (createdAt == null || createdAt.isEmpty) return false;
+          
+          // Parse the date string (handles both formats: "2025-09-16T13:28:05.000000Z" and "2025-09-16")
+          DateTime orderDate;
+          if (createdAt.contains('T')) {
+            // ISO format with time
+            orderDate = DateTime.parse(createdAt);
+          } else {
+            // Simple date format
+            orderDate = DateTime.parse(createdAt);
+          }
+          
+          // Convert to date only for comparison
+          final orderDateOnly = DateTime(orderDate.year, orderDate.month, orderDate.day);
+
+          bool passesFromDate = true;
+          bool passesToDate = true;
+          
+          if (fromDate != null) {
+            final fromDateOnly = DateTime(fromDate!.year, fromDate!.month, fromDate!.day);
+            passesFromDate = orderDateOnly.isAtSameMomentAs(fromDateOnly) || orderDateOnly.isAfter(fromDateOnly);
+          }
+          
+          if (toDate != null) {
+            final toDateOnly = DateTime(toDate!.year, toDate!.month, toDate!.day);
+            passesToDate = orderDateOnly.isAtSameMomentAs(toDateOnly) || orderDateOnly.isBefore(toDateOnly);
+          }
+
+          return passesFromDate && passesToDate;
+        } catch (e) {
+          print('❌ خطأ في تحليل التاريخ: $e - التاريخ: ${order['created_at']}');
+          return false; // Exclude orders with invalid dates
+        }
+      }).toList();
+    }
+
+    // Apply search filter
+    if (searchQuery.isNotEmpty) {
+      final searchLower = searchQuery.toLowerCase().trim();
+      filteredOrders = filteredOrders.where((order) {
+        final orderId = order['id']?.toString().toLowerCase() ?? '';
+        final customerName = order['customer_name']?.toString().toLowerCase() ?? '';
+        final customerPhone = order['customer_phone']?.toString().toLowerCase() ?? '';
+        final customerAddress = order['customer_address']?.toString().toLowerCase() ?? '';
+
+        return orderId.contains(searchLower) ||
+            customerName.contains(searchLower) ||
+            customerPhone.contains(searchLower) ||
+            customerAddress.contains(searchLower);
+      }).toList();
+    }
+
+    setState(() {
+      orders = filteredOrders;
+    });
+  }
+
+  // Clear date filters
+  void _clearDateFilters() {
+    setState(() {
+      fromDate = null;
+      toDate = null;
+    });
+    _applyFilters();
+  }
+
+  // Clear search
+  void _clearSearch() {
+    setState(() {
+      searchQuery = '';
+      _searchController.clear();
+    });
+    _applyFilters();
   }
 
   Widget _buildOrderCard(Map<String, dynamic> order) {
@@ -411,7 +656,25 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
               ],
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
+
+            // Order Date
+            Row(
+              children: [
+                Icon(Icons.access_time, color: Colors.grey, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  'التاريخ: ${_formatDate(order['created_at'] ?? '')}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
 
             // Customer Info - Simplified
             Row(
@@ -442,7 +705,7 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
                   Text(
                     order['customer_phone'] ?? 'غير محدد',
                     style: TextStyle(
-                      fontSize: 13, 
+                      fontSize: 13,
                       color: Colors.blue,
                       decoration: TextDecoration.underline,
                     ),
@@ -473,7 +736,7 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
             const SizedBox(height: 8),
             Divider(color: Colors.grey.shade300, height: 1),
             const SizedBox(height: 8),
-            
+
             // For delivery users (role = 1): show store info (added_by)
             if (currentUserRole == 1 && addedBy != null) ...[
               Row(
