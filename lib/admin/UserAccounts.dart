@@ -121,19 +121,19 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
     );
   }
 
-  /// 🗑️ رفض وحذف حساب من API
+  ///  رفض وحذف حساب من API
   Future<void> _deleteUser(dynamic userId) async {
     try {
       final response = await _userService.rejectUser(userId);
       
       if (response.statusCode == 200) {
-        _showSnackBar("تم رفض وحذف الحساب بنجاح", success: true);
+        _showSnackBar("تم  حذف الحساب بنجاح", success: true);
         _loadUsers(); // إعادة تحميل البيانات
       } else {
-        _showSnackBar("فشل في رفض الحساب");
+        _showSnackBar("فشل في حذف الحساب");
       }
     } catch (e) {
-      _showSnackBar("حدث خطأ أثناء الرفض: $e");
+      _showSnackBar("حدث خطأ أثناء الحذف: $e");
     }
   }
 

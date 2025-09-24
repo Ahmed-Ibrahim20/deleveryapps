@@ -4,6 +4,7 @@ import 'package:my_app_delevery1/admin/HomePage.dart';
 import 'package:my_app_delevery1/delevery/home_delevery.dart';
 import 'package:my_app_delevery1/store/home_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dio/dio.dart';
 import './services/Auth/signin_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -59,6 +60,19 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setString('address', data['user']['address'] ?? '');
       await prefs.setBool('is_approved', data['user']['is_approved'] ?? false);
       await prefs.setBool('is_active', data['user']['is_active'] ?? false);
+      // حفظ نسبة العمولة مع التعامل مع أنواع البيانات المختلفة
+      final commissionValue = data['user']['commission_percentage'];
+      double commission = 0.0;
+      if (commissionValue != null) {
+        if (commissionValue is double) {
+          commission = commissionValue;
+        } else if (commissionValue is int) {
+          commission = commissionValue.toDouble();
+        } else if (commissionValue is String) {
+          commission = double.tryParse(commissionValue) ?? 0.0;
+        }
+      }
+      await prefs.setDouble('commission_percentage', commission);
       await prefs.setBool('hasLoggedOut', false);
 
       //  رسالة نجاح
@@ -95,10 +109,60 @@ class _LoginScreenState extends State<LoginScreen> {
           const SnackBar(content: Text("نوع حساب غير معروف")),
         );
       }
+    } on DioException catch (e) {
+      setState(() => _isLoading = false);
+      
+      // معالجة أخطاء API المحددة
+      String errorMessage = "حدث خطأ غير متوقع";
+      
+      if (e.response?.data != null) {
+        final responseData = e.response!.data;
+        
+        // التحقق من وجود رسالة خطأ محددة
+        if (responseData['message'] != null) {
+          errorMessage = responseData['message'];
+        }
+        
+        // التحقق من وجود أخطاء تفصيلية
+        if (responseData['errors'] != null) {
+          final errors = responseData['errors'] as Map<String, dynamic>;
+          List<String> errorMessages = [];
+          
+          errors.forEach((field, messages) {
+            if (messages is List) {
+              errorMessages.addAll(messages.cast<String>());
+            }
+          });
+          
+          if (errorMessages.isNotEmpty) {
+            errorMessage = errorMessages.join('\n');
+          }
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout || 
+                 e.type == DioExceptionType.receiveTimeout ||
+                 e.type == DioExceptionType.connectionError) {
+        errorMessage = "تحقق من اتصال الإنترنت";
+      } else {
+        errorMessage = "فشل في تسجيل الدخول";
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } catch (e) {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("حدث خطأ: $e")),
+        SnackBar(
+          content: Text("تحقق من اتصال الإنترنت"),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
       );
     }
   }

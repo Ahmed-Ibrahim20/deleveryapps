@@ -87,6 +87,25 @@ class OrderService extends ApiService {
     }
   }
 
+  // Get orders with status=1 (ongoing orders) - NEW METHOD
+  Future<Response> getOngoingOrders() async {
+    final headers = await _getHeaders();
+    
+    try {
+      final response = await dio.get(
+        baseUrl,
+        queryParameters: {
+          'status': 1, // Only orders with status = 1
+        },
+        options: Options(headers: headers),
+      );
+      return response;
+    } on DioException catch (e) {
+      print("❌ DioError [GET ONGOING ORDERS]: ${e.message}");
+      rethrow;
+    }
+  }
+
 // Change order status using the new endpoint
   Future<Response> changeOrderStatus(dynamic orderId, int status) async {
     final headers = await _getHeaders();
@@ -97,31 +116,68 @@ class OrderService extends ApiService {
       print("🔄 Order ID: $orderId, Status: $status");
       print("🔄 Headers: $headers");
       
+      // Configure dio with timeout settings
+      dio.options.connectTimeout = const Duration(seconds: 15);
+      dio.options.receiveTimeout = const Duration(seconds: 15);
+      dio.options.sendTimeout = const Duration(seconds: 15);
+      
       // Try POST first
-      final response = await dio.post(
+      final response = await dio.put(
         url,
         data: {'status': status},
-        options: Options(headers: headers),
+        options: Options(
+          headers: headers,
+          validateStatus: (status) => status != null && status < 500,
+        ),
       );
       
       print("✅ Status change response: ${response.statusCode}");
+      print("✅ Response data: ${response.data}");
       return response;
     } on DioException catch (e) {
-      print("❌ POST failed, trying PUT method...");
+      print("❌ POST failed with error type: ${e.type}");
+      print("❌ Error message: ${e.message}");
+      
+      // Handle specific error types
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout) {
+        throw Exception('انتهت مهلة الاتصال. تحقق من الاتصال بالإنترنت.');
+      }
+      
+      if (e.type == DioExceptionType.connectionError) {
+        throw Exception('خطأ في الاتصال بالإنترنت. تحقق من الاتصال وحاول مرة أخرى.');
+      }
       
       // If POST fails with 405, try PUT
       if (e.response?.statusCode == 405) {
         try {
+          print("🔄 Trying PUT method...");
           final response = await dio.put(
             url,
             data: {'status': status},
-            options: Options(headers: headers),
+            options: Options(
+              headers: headers,
+              validateStatus: (status) => status != null && status < 500,
+            ),
           );
           
           print("✅ Status change response (PUT): ${response.statusCode}");
+          print("✅ Response data: ${response.data}");
           return response;
-        } catch (putError) {
-          print("❌ PUT also failed: $putError");
+        } on DioException catch (putError) {
+          print("❌ PUT also failed: ${putError.message}");
+          
+          if (putError.type == DioExceptionType.connectionTimeout ||
+              putError.type == DioExceptionType.receiveTimeout ||
+              putError.type == DioExceptionType.sendTimeout) {
+            throw Exception('انتهت مهلة الاتصال. تحقق من الاتصال بالإنترنت.');
+          }
+          
+          if (putError.type == DioExceptionType.connectionError) {
+            throw Exception('خطأ في الاتصال بالإنترنت. تحقق من الاتصال وحاول مرة أخرى.');
+          }
+          
           rethrow;
         }
       }
@@ -129,7 +185,22 @@ class OrderService extends ApiService {
       print("❌ DioError [CHANGE ORDER STATUS]: ${e.message}");
       print("❌ Response: ${e.response?.data}");
       print("❌ Status Code: ${e.response?.statusCode}");
+      
+      // Provide more specific error messages
+      if (e.response?.statusCode == 401) {
+        throw Exception('خطأ في التوثيق. قم بتسجيل الدخول مرة أخرى.');
+      } else if (e.response?.statusCode == 403) {
+        throw Exception('ليس لديك صلاحية لتنفيذ هذا الإجراء.');
+      } else if (e.response?.statusCode == 404) {
+        throw Exception('الطلب غير موجود أو تم حذفه.');
+      } else if (e.response?.statusCode != null && e.response!.statusCode! >= 500) {
+        throw Exception('خطأ في الخادم. حاول مرة أخرى لاحقاً.');
+      }
+      
       rethrow;
+    } catch (e) {
+      print("❌ Unexpected error: $e");
+      throw Exception('خطأ غير متوقع. حاول مرة أخرى.');
     }
   }
   Future<Map<String, String>> _getHeaders() async {

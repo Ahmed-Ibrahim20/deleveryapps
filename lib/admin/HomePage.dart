@@ -7,12 +7,19 @@
 //import 'package:delivery_traning/signup_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'package:badges/badges.dart' as badges;
 import 'package:my_app_delevery1/admin/PendingUsersPage.dart';
 import 'package:my_app_delevery1/admin/signup_screen.dart';
 import 'package:my_app_delevery1/admin/UserAccounts.dart';
 import 'package:my_app_delevery1/admin/ShopPage.dart';
 import 'package:my_app_delevery1/admin/DeleveryPage.dart';
 import 'package:my_app_delevery1/admin/ProfilePage.dart';
+import 'package:my_app_delevery1/admin/ReportsPage.dart';
+import '../providers/notification_provider.dart';
+import '../models/notification_model.dart';
+import 'notifications_page.dart';
+import 'accepted_orders_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -26,13 +33,47 @@ class _HomePageState extends State<HomePage> {
   String selectedFilter = 'اليوم';
   DateTime? selectedDate;
   DateTime? selectedMonth;
-  String adminName = 'توصيل الطلبات'; // Default title
+  String adminName = 'لوحة تحكم الأدمن'; // Default title
   bool isLoadingName = true;
 
   @override
   void initState() {
     super.initState();
     _loadAdminName();
+    _initializeNotifications();
+  }
+
+  /// تهيئة الإشعارات مع تحديث دوري
+  void _initializeNotifications() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        try {
+          final provider = Provider.of<NotificationProvider>(context, listen: false);
+          provider.updateUserRole(UserRole.admin);
+          provider.fetchNotifications(forceRefresh: true);
+          print('🔔 Admin HomePage: Notifications initialized with ${provider.unreadCount} unread');
+        } catch (e) {
+          print('❌ Error initializing NotificationProvider: $e');
+        }
+      }
+    });
+  }
+
+  /// تحديث الإشعارات عند العودة للصفحة
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // تحديث الإشعارات عند العودة للصفحة
+    if (mounted) {
+      try {
+        final provider = Provider.of<NotificationProvider>(context, listen: false);
+        if (provider.userRole == UserRole.admin) {
+          provider.fetchNotifications();
+        }
+      } catch (e) {
+        print('❌ Error refreshing notifications: $e');
+      }
+    }
   }
 
   Future<void> _loadAdminName() async {
@@ -83,15 +124,52 @@ class _HomePageState extends State<HomePage> {
           ),
           centerTitle: true,
           actions: [
-            IconButton(
-              icon: const Icon(Icons.notifications_none, color: Colors.white, size: 40),
-              onPressed: () {
-                /*Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const NotificationsPage(),
-                  ),
-                );*/
+            Consumer<NotificationProvider>(
+              builder: (context, provider, child) {
+                print('🔔 Badge Update: ${provider.unreadCount} unread notifications');
+                
+                if (provider.unreadCount > 0) {
+                  return badges.Badge(
+                    badgeContent: Text(
+                      provider.unreadCount > 99 ? '99+' : provider.unreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white, 
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    badgeStyle: const badges.BadgeStyle(
+                      badgeColor: Colors.red,
+                      padding: EdgeInsets.all(6),
+                      borderRadius: BorderRadius.all(Radius.circular(10)),
+                    ),
+                    position: badges.BadgePosition.topEnd(top: 0, end: 3),
+                    child: IconButton(
+                      icon: const Icon(Icons.notifications_active, color: Colors.white, size: 28),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const NotificationsPage(),
+                          ),
+                        );
+                      },
+                      tooltip: 'الإشعارات (${provider.unreadCount} غير مقروء)',
+                    ),
+                  );
+                }
+                return IconButton(
+                  icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotificationsPage(),
+                      ),
+                    );
+                  },
+                  tooltip: 'الإشعارات',
+                );
               },
             ),
           ],
@@ -118,6 +196,7 @@ class _HomePageState extends State<HomePage> {
                           _buildGridCard(context, 'التقارير التفصيلية', Icons.bar_chart, Colors.green.shade600),
                           _buildGridCard(context, 'إدارة المتاجر', Icons.storefront_outlined, Colors.blue.shade600),
                           _buildGridCard(context, 'إدارة السائقين', Icons.delivery_dining_outlined, Colors.orange.shade600),
+                          _buildGridCard(context, 'الطلبات الجارية', Icons.assignment_turned_in, Colors.orange.shade600),
                           _buildGridCard(context, 'إضافة أدمن جديد', Icons.person_add, Colors.purple.shade600),
                           _buildCard(
                             context,
@@ -152,6 +231,12 @@ class _HomePageState extends State<HomePage> {
     return GestureDetector(
       onTap: () {
         switch (title) {
+          case 'التقارير التفصيلية':
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ReportsPageDesign()),
+            );
+            break;
           case 'طلبات فتح حساب':
             Navigator.push(
               context,
@@ -180,6 +265,12 @@ class _HomePageState extends State<HomePage> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const DeleveryPage()),
+            );
+            break;
+          case 'الطلبات الجارية':
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AcceptedOrdersPage()),
             );
             break;
           default:

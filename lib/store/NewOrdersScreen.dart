@@ -18,15 +18,15 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
   String? extractedPhone;
 
   final Map<String, TextEditingController> controllers = {
-  'orderId': TextEditingController(),
-  'client': TextEditingController(),
-  'clientAddress': TextEditingController(),
-  'clientPhone': TextEditingController(),
-  'deliveryCost': TextEditingController(),
-  'appCommission': TextEditingController(),
-  'storeName': TextEditingController(),
-  'storeLocation': TextEditingController(),
-};
+    'orderId': TextEditingController(),
+    'client': TextEditingController(),
+    'clientAddress': TextEditingController(),
+    'clientPhone': TextEditingController(),
+    'deliveryCost': TextEditingController(),
+    'appCommission': TextEditingController(),
+    'storeName': TextEditingController(),
+    'storeLocation': TextEditingController(),
+  };
 
   final List<Map<String, dynamic>> orders = [];
   final List<Map<String, String>> currentItems = [];
@@ -44,7 +44,7 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
       // Get user data from SharedPreferences (stored during login)
       final prefs = await SharedPreferences.getInstance();
       final storedPhone = prefs.getString('phone');
-      
+
       extractedPhone = storedPhone ?? widget.phone;
       _loadStoreData();
     } catch (e) {
@@ -57,10 +57,11 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
     try {
       // Get user data from SharedPreferences (stored during login)
       final prefs = await SharedPreferences.getInstance();
-      
+
       final userName = prefs.getString('name') ?? 'غير محدد';
       final userAddress = prefs.getString('address') ?? 'غير محدد';
-      final userPhone = prefs.getString('phone') ?? extractedPhone ?? 'غير محدد';
+      final userPhone =
+          prefs.getString('phone') ?? extractedPhone ?? 'غير محدد';
       final userRole = prefs.getInt('role') ?? 0;
       final userId = prefs.getInt('user_id') ?? 0;
       final userEmail = prefs.getString('email') ?? '';
@@ -68,13 +69,8 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
       final isApproved = prefs.getBool('is_approved') ?? false;
       final isActive = prefs.getBool('is_active') ?? false;
 
-      // Set commission based on role (you can adjust these values)
-      double commission = 0.0;
-      if (userRole == 1) { // Store
-        commission = 5.0; // Default commission for stores
-      } else if (userRole == 2) { // Delivery
-        commission = 2.0; // Default commission for delivery
-      }
+      // Get the real commission percentage from SharedPreferences
+      final commission = prefs.getDouble('commission_percentage') ?? 0.0;
 
       setState(() {
         storeData = {
@@ -96,10 +92,15 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
       print('📱 الاسم: $userName');
       print('📍 العنوان: $userAddress');
       print('☎️ الهاتف: $userPhone');
-      print('👤 النوع: ${userRole == 0 ? 'أدمن' : userRole == 1 ? 'محل' : 'دليفري'}');
+      print(
+        '👤 النوع: ${userRole == 0
+            ? 'أدمن'
+            : userRole == 1
+            ? 'محل'
+            : 'دليفري'}',
+      );
       print('✅ مفعل: $isActive');
       print('✅ معتمد: $isApproved');
-      
     } catch (e) {
       print('❌ خطأ في تحميل بيانات المستخدم: $e');
       setState(() {
@@ -123,65 +124,74 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
     }
   }
 
-void addMoreOrders() {
-  // جلب القيم من التيكست فيلد
-  final client = controllers['client']!.text.trim();
-  final clientAddress = controllers['clientAddress']!.text.trim();
-  final clientPhone = controllers['clientPhone']!.text.trim();
-  final deliveryCostText = controllers['deliveryCost']!.text.trim();
+  void addMoreOrders() {
+    // جلب القيم من التيكست فيلد
+    final client = controllers['client']!.text.trim();
+    final clientAddress = controllers['clientAddress']!.text.trim();
+    final clientPhone = controllers['clientPhone']!.text.trim();
+    final deliveryCostText = controllers['deliveryCost']!.text.trim();
 
-  // التشيك على الحقول الأربعة بس
-  if (client.isEmpty || clientAddress.isEmpty || clientPhone.isEmpty || deliveryCostText.isEmpty) {
+    // التشيك على الحقول الأربعة بس
+    if (client.isEmpty ||
+        clientAddress.isEmpty ||
+        clientPhone.isEmpty ||
+        deliveryCostText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'يرجى إدخال اسم العميل، العنوان، الهاتف، وتكلفة التوصيل',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // parse تكلفة التوصيل
+    final deliveryCost = double.tryParse(deliveryCostText) ?? 0.0;
+
+    // إنشاء رقم الطلب
+    String generatedOrderId = DateTime.now().millisecondsSinceEpoch
+        .toString()
+        .substring(4, 13);
+
+    // حساب الإجماليات (لو حابب تسيبها زي ما هي حتى لو المنتجات متقفلة)
+    final totalItemsPrice = _calculateTotalItemsPrice();
+    final totalPrice = totalItemsPrice + deliveryCost;
+
+    final order = {
+      'orderId': generatedOrderId,
+      'client': client,
+      'clientAddress': clientAddress,
+      'clientPhone': clientPhone,
+      'deliveryCost': deliveryCost,
+      'items': List<Map<String, String>>.from(currentItems),
+      'totalItemsPrice': totalItemsPrice,
+      'totalPrice': totalPrice,
+    };
+
+    setState(() {
+      orders.add(order);
+      for (var controller in controllers.values) {
+        controller.clear();
+      }
+      currentItems.clear();
+    });
+
+    print(
+      '📦 Added order ${order['orderId']} to batch (Total: ${orders.length} orders)',
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('يرجى إدخال اسم العميل، العنوان، الهاتف، وتكلفة التوصيل'),
-        backgroundColor: Colors.red,
+      SnackBar(
+        content: Text(
+          '✅ تم إضافة الطلب بنجاح! (${orders.length} طلب جاهز للإرسال)',
+        ),
+        backgroundColor: Colors.green,
       ),
     );
-    return;
   }
 
-  // parse تكلفة التوصيل
-  final deliveryCost = double.tryParse(deliveryCostText) ?? 0.0;
-
-  // إنشاء رقم الطلب
-  String generatedOrderId =
-      DateTime.now().millisecondsSinceEpoch.toString().substring(4, 13);
-
-  // حساب الإجماليات (لو حابب تسيبها زي ما هي حتى لو المنتجات متقفلة)
-  final totalItemsPrice = _calculateTotalItemsPrice();
-  final totalPrice = totalItemsPrice + deliveryCost;
-
-  final order = {
-    'orderId': generatedOrderId,
-    'client': client,
-    'clientAddress': clientAddress,
-    'clientPhone': clientPhone,
-    'deliveryCost': deliveryCost,
-    'items': List<Map<String, String>>.from(currentItems),
-    'totalItemsPrice': totalItemsPrice,
-    'totalPrice': totalPrice,
-  };
-
-  setState(() {
-    orders.add(order);
-    for (var controller in controllers.values) {
-      controller.clear();
-    }
-    currentItems.clear();
-  });
-
-  print(
-    '📦 Added order ${order['orderId']} to batch (Total: ${orders.length} orders)',
-  );
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text('✅ تم إضافة الطلب بنجاح! (${orders.length} طلب جاهز للإرسال)'),
-      backgroundColor: Colors.green,
-    ),
-  );
-}
   double _calculateTotalItemsPrice() {
     return currentItems.fold(
       0.0,
@@ -202,12 +212,13 @@ void addMoreOrders() {
 
     try {
       final orderService = OrderService();
-      
+
       for (int i = 0; i < orders.length; i++) {
         final order = orders[i];
 
         // Calculate commission based on store commission percentage
-        final commissionRate = (storeData!['appCommission'] as num?)?.toDouble() ?? 0.0;
+        final commissionRate =
+            (storeData!['appCommission'] as num?)?.toDouble() ?? 0.0;
         final totalPrice = (order['totalPrice'] as num?)?.toDouble() ?? 0.0;
         final appCommission = (totalPrice * commissionRate / 100);
 
@@ -217,20 +228,22 @@ void addMoreOrders() {
           'customer_address': order['clientAddress'],
           'delivery_fee': (order['deliveryCost'] as num?)?.toDouble() ?? 0.0,
           'total': totalPrice,
-          'user_add_id': 1, // Default user ID - you may need to get this from token/preferences
-          'status': 1, // Default status for new orders
+          'user_add_id': storeData!['id'], // Use actual user ID from store data
+          'status': 0, // Default status for new orders
           'notes': 'طلب من التطبيق',
           'application_fee': appCommission,
         };
 
         print('📦 إرسال الطلب ${i + 1}: $orderData');
-        
+
         final response = await orderService.createOrder(orderData);
-        
+
         if (response.statusCode == 201 || response.statusCode == 200) {
           print('✅ تم إرسال الطلب ${i + 1} بنجاح');
         } else {
-          throw Exception('فشل في إرسال الطلب ${i + 1}: ${response.statusCode}');
+          throw Exception(
+            'فشل في إرسال الطلب ${i + 1}: ${response.statusCode}',
+          );
         }
       }
 
@@ -244,7 +257,9 @@ void addMoreOrders() {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ تم إرسال جميع الطلبات بنجاح! (${orders.length} طلب)'),
+          content: Text(
+            '✅ تم إرسال جميع الطلبات بنجاح! (${orders.length} طلب)',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -355,17 +370,21 @@ void addMoreOrders() {
                           Row(
                             children: [
                               Icon(
-                                storeData!['role'] == 0 ? Icons.admin_panel_settings :
-                                storeData!['role'] == 1 ? Icons.store :
-                                Icons.delivery_dining,
+                                storeData!['role'] == 0
+                                    ? Icons.admin_panel_settings
+                                    : storeData!['role'] == 1
+                                    ? Icons.store
+                                    : Icons.delivery_dining,
                                 color: Colors.blue,
                                 size: 24,
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                storeData!['role'] == 0 ? 'معلومات الأدمن' :
-                                storeData!['role'] == 1 ? 'معلومات المحل' :
-                                'معلومات الدليفري',
+                                storeData!['role'] == 0
+                                    ? 'معلومات الأدمن'
+                                    : storeData!['role'] == 1
+                                    ? 'معلومات المحل'
+                                    : 'معلومات الدليفري',
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -381,19 +400,23 @@ void addMoreOrders() {
                             ),
                             readOnly: true,
                             decoration: customInputDecoration(
-                              storeData!['role'] == 0 ? 'اسم الأدمن' :
-                              storeData!['role'] == 1 ? 'اسم المحل' :
-                              'اسم الدليفري'
+                              storeData!['role'] == 0
+                                  ? 'اسم الأدمن'
+                                  : storeData!['role'] == 1
+                                  ? 'اسم المحل'
+                                  : 'اسم الدليفري',
                             ),
                           ),
                           const SizedBox(height: 10),
-                          TextFormField(
-                            controller: TextEditingController(
-                              text: storeData?['address'] ?? 'غير محدد',
+                          if (storeData!['role'] == 2) // Show address only for shops
+                            TextFormField(
+                              controller: TextEditingController(
+                                text: storeData?['address'] ?? 'غير محدد',
+                              ),
+                              readOnly: true,
+                              decoration: customInputDecoration('العنوان'),
                             ),
-                            readOnly: true,
-                            decoration: customInputDecoration('العنوان'),
-                          ),
+                          if (storeData!['role'] == 2) const SizedBox(height: 10),
                           const SizedBox(height: 10),
                           TextFormField(
                             controller: TextEditingController(
@@ -412,89 +435,6 @@ void addMoreOrders() {
                             decoration: customInputDecoration('نسبة التطبيق'),
                           ),
                           const SizedBox(height: 10),
-                          TextFormField(
-                            controller: TextEditingController(
-                              text: '',
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.percent,
-                                color: Colors.green,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'نسبة التطبيق: ${storeData?['appCommission'] ?? 0}%',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          // User Status Indicators
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: storeData!['is_active'] ? Colors.green : Colors.red,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      storeData!['is_active'] ? Icons.check_circle : Icons.cancel,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      storeData!['is_active'] ? 'مفعل' : 'غير مفعل',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: storeData!['is_approved'] ? Colors.blue : Colors.orange,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      storeData!['is_approved'] ? Icons.verified : Icons.pending,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      storeData!['is_approved'] ? 'معتمد' : 'في الانتظار',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
                         ],
                       ),
                     ),
@@ -520,31 +460,31 @@ void addMoreOrders() {
                           TextFormField(
                             controller: controllers['client'],
                             decoration: customInputDecoration('اسم العميل'),
-                            validator:
-                                (v) => v == null || v.isEmpty ? 'مطلوب' : null,
+                            validator: (v) =>
+                                v == null || v.isEmpty ? 'مطلوب' : null,
                           ),
                           const SizedBox(height: 10),
                           TextFormField(
                             controller: controllers['clientAddress'],
                             decoration: customInputDecoration('عنوان العميل'),
-                            validator:
-                                (v) => v == null || v.isEmpty ? 'مطلوب' : null,
+                            validator: (v) =>
+                                v == null || v.isEmpty ? 'مطلوب' : null,
                           ),
                           const SizedBox(height: 10),
                           TextFormField(
                             controller: controllers['clientPhone'],
                             keyboardType: TextInputType.phone,
                             decoration: customInputDecoration('هاتف العميل'),
-                            validator:
-                                (v) => v == null || v.isEmpty ? 'مطلوب' : null,
+                            validator: (v) =>
+                                v == null || v.isEmpty ? 'مطلوب' : null,
                           ),
                           const SizedBox(height: 10),
                           TextFormField(
                             controller: controllers['deliveryCost'],
                             keyboardType: TextInputType.number,
                             decoration: customInputDecoration('تكلفة التوصيل'),
-                            validator:
-                                (v) => v == null || v.isEmpty ? 'مطلوب' : null,
+                            validator: (v) =>
+                                v == null || v.isEmpty ? 'مطلوب' : null,
                           ),
                         ],
                       ),
@@ -553,7 +493,7 @@ void addMoreOrders() {
                   const SizedBox(height: 16),
 
                   // Items Section
-                 /* Card(
+                  /* Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(

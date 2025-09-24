@@ -109,6 +109,22 @@ class _UserPageDetailsState extends State<UserPageDetails>
     }
   }
 
+  String _getPageTitle() {
+    final role = widget.user['role'];
+    switch (role) {
+      case 1:
+        return ' السائق: $userName';
+      case 2:
+        return ' متجر: $userName';
+      default:
+        return ' المستخدم: $userName';
+    }
+  }
+
+  bool _isShop() {
+    return widget.user['role'] == 2;
+  }
+
   // Update user active status
   Future<void> _updateActiveStatus(bool newStatus) async {
     try {
@@ -145,7 +161,9 @@ class _UserPageDetailsState extends State<UserPageDetails>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              newStatus ? "تم تفعيل الحساب بنجاح" : "تم إلغاء تفعيل الحساب بنجاح",
+              newStatus
+                  ? "تم تفعيل الحساب بنجاح"
+                  : "تم إلغاء تفعيل الحساب بنجاح",
             ),
             backgroundColor: Colors.green,
           ),
@@ -363,65 +381,34 @@ class _UserPageDetailsState extends State<UserPageDetails>
                 children: [
                   const Icon(Icons.phone, color: Colors.blue),
                   const SizedBox(width: 8),
-                  Text(
-                    "رقم الهاتف: $userPhone",
-                    style: _detailTextStyle(),
-                  ),
+                  Text("رقم الهاتف: $userPhone", style: _detailTextStyle()),
                 ],
               ),
               const SizedBox(height: 20),
 
-              // Email
-              Row(
-                children: [
-                  const Icon(Icons.email, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  Text(
-                    "البريد الإلكتروني: $userEmail",
-                    style: _detailTextStyle(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
+              // Address (only for shops)
+              if (_isShop()) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    Text("العنوان: $userAddress", style: _detailTextStyle()),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
 
-              // Address
-              Row(
-                children: [
-                  const Icon(Icons.location_on, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  Text(
-                    "العنوان: $userAddress",
-                    style: _detailTextStyle(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Role
-              Row(
-                children: [
-                  const Icon(Icons.work, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  Text(
-                    "الدور: $userRole",
-                    style: _detailTextStyle(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Category
-              Row(
-                children: [
-                  const Icon(Icons.category, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  Text(
-                    "التصنيف: $userCategory",
-                    style: _detailTextStyle(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
+              // Category (only for shops)
+              if (_isShop()) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.category, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    Text("التصنيف: $userCategory", style: _detailTextStyle()),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
 
               // Commission percentage
               Row(
@@ -485,47 +472,6 @@ class _UserPageDetailsState extends State<UserPageDetails>
                     onChanged: (value) async {
                       await _updateActiveStatus(value);
                     },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Notes
-              Row(
-                children: [
-                  const Icon(Icons.note, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "الملاحظات: $userNotes",
-                      style: _detailTextStyle(),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Created date
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  Text(
-                    "تاريخ الإنشاء: $createdAt",
-                    style: _detailTextStyle(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Updated date
-              Row(
-                children: [
-                  const Icon(Icons.update, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  Text(
-                    "تاريخ التحديث: $updatedAt",
-                    style: _detailTextStyle(),
                   ),
                 ],
               ),
@@ -704,7 +650,7 @@ class _UserPageDetailsState extends State<UserPageDetails>
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('تفاصيل المستخدم: $userName'),
+          title: Text(_getPageTitle()),
           backgroundColor: Colors.blue,
           foregroundColor: Colors.white,
         ),
@@ -724,12 +670,8 @@ class _UserPageDetailsState extends State<UserPageDetails>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  SingleChildScrollView(
-                    child: buildUserDetailsCard(),
-                  ),
-                  SingleChildScrollView(
-                    child: buildStatisticsCard(),
-                  ),
+                  SingleChildScrollView(child: buildUserDetailsCard()),
+                  SingleChildScrollView(child: buildStatisticsCard()),
                 ],
               ),
             ),

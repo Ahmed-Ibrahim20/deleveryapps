@@ -70,8 +70,11 @@ class _OrderScreenDesignState extends State<OrderScreenDesign> {
 
     try {
       final orderService = OrderService();
-      // Use the new method to get orders with status = 0
-      final response = await orderService.getNewOrdersForDelivery();
+      // Use getAllOrders instead of getNewOrdersForDelivery for better compatibility
+      final response = await orderService.getAllOrders();
+
+      print('🔍 Response status: ${response.statusCode}');
+      print('🔍 Response data: ${response.data}');
 
       if (response.statusCode == 200 && response.data != null) {
         final responseData = response.data['data'];
@@ -80,11 +83,16 @@ class _OrderScreenDesignState extends State<OrderScreenDesign> {
             responseData['data'],
           );
 
+          print('🔍 Total orders from API: ${allOrdersFromApi.length}');
+
           // Filter orders to show only status = 0 (new orders available for delivery)
           final filteredOrders = allOrdersFromApi.where((order) {
             final orderStatus = order['status'];
+            print('🔍 Order ${order['id']} has status: $orderStatus');
             return orderStatus == 0; // Only show orders with status = 0
           }).toList();
+
+          print('🔍 Filtered orders (status=0): ${filteredOrders.length}');
 
           setState(() {
             allOrders = List<Map<String, dynamic>>.from(filteredOrders);

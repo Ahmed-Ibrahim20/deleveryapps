@@ -106,7 +106,7 @@ class _AccountNewRequestPageState extends State<AccountNewRequestPage> {
       "role": role,
       if (accountType == "متجر") ...{
         "store_name": storeNameController.text,
-        "category": categoryController.text,
+        "catogrey": categoryController.text,
         "address": addressController.text,
       },
       if (accountType == "سائق" && _pickedImageFile != null)

@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:badges/badges.dart' as badges;
 import 'NewOrdersScreen.dart';
 import 'order_detailes_shope.dart';
 import 'previousordersscreen_shope.dart';
 import 'Profileshope.dart';
+import 'Reportshope.dart';
+import 'nofication_shope.dart';
+import '../providers/notification_provider.dart';
+import '../models/notification_model.dart';
 
 class Home_shope extends StatefulWidget {
   final String phone;
@@ -22,6 +28,19 @@ class _Home_shopeState extends State<Home_shope> {
     super.initState();
     // بدلاً من فايربيز هخليها قيم ثابتة
     phoneForNavigation = widget.phone;
+    
+    // تهيئة الإشعارات
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        try {
+          final provider = Provider.of<NotificationProvider>(context, listen: false);
+          provider.updateUserRole(UserRole.shop);
+          provider.fetchNotifications();
+        } catch (e) {
+          print('❌ Error initializing NotificationProvider: $e');
+        }
+      }
+    });
   }
 
   @override
@@ -43,17 +62,43 @@ class _Home_shopeState extends State<Home_shope> {
           ),
           centerTitle: true,
           actions: [
-            /*NotificationBadgeIcon(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        nofication_shope(phone: phoneForNavigation),
-                  ),
+            Consumer<NotificationProvider>(
+              builder: (context, provider, child) {
+                if (provider.unreadCount > 0) {
+                  return badges.Badge(
+                    badgeContent: Text(
+                      provider.unreadCount.toString(),
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                    badgeStyle: const badges.BadgeStyle(
+                      badgeColor: Colors.red,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.store, color: Colors.white, size: 28),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => nofication_shope(phone: phoneForNavigation),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                }
+                return IconButton(
+                  icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => nofication_shope(phone: phoneForNavigation),
+                      ),
+                    );
+                  },
                 );
               },
-            ),*/
+            ),
           ],
         ),
         body: SafeArea(
@@ -168,11 +213,10 @@ class _Home_shopeState extends State<Home_shope> {
             );
             break;
           case 'تقارير':
-            // TODO: Add navigation to reports screen
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('التقارير - قريباً'),
-                backgroundColor: Colors.orange,
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => report_shope(phone: phoneForNavigation),
               ),
             );
             break;

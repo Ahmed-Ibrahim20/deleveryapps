@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'package:badges/badges.dart' as badges;
 import '../store/order_detailes_shope.dart';
 import '../store/previousordersscreen_shope.dart';
 import '../store/Profileshope.dart';
 import './order_screen.dart';
+import './ReportDelevery.dart';
+import './nofication_delivery.dart';
 import '../services/Api/order_service.dart';
+import '../providers/notification_provider.dart';
+import '../models/notification_model.dart';
 
 class DriverHomePage extends StatefulWidget {
   final String phone;
@@ -27,6 +33,19 @@ class _DriverHomePageState extends State<DriverHomePage> {
   void initState() {
     super.initState();
     _loadUserDataAndCounts();
+    
+    // تهيئة الإشعارات
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        try {
+          final provider = Provider.of<NotificationProvider>(context, listen: false);
+          provider.updateUserRole(UserRole.driver);
+          provider.fetchNotifications();
+        } catch (e) {
+          print('❌ Error initializing NotificationProvider: $e');
+        }
+      }
+    });
   }
 
   Future<void> _loadUserDataAndCounts() async {
@@ -138,19 +157,43 @@ class _DriverHomePageState extends State<DriverHomePage> {
           ),
           centerTitle: true,
           actions: [
-            /* DeliveryNotificationBadge(
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        Notification_delivery(phone: widget.phone),
-                  ),
+            Consumer<NotificationProvider>(
+              builder: (context, provider, child) {
+                if (provider.unreadCount > 0) {
+                  return badges.Badge(
+                    badgeContent: Text(
+                      provider.unreadCount.toString(),
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                    badgeStyle: const badges.BadgeStyle(
+                      badgeColor: Colors.red,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.delivery_dining, color: Colors.white, size: 28),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => NotificationDelivery(phone: widget.phone),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                }
+                return IconButton(
+                  icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => NotificationDelivery(phone: widget.phone),
+                      ),
+                    );
+                  },
                 );
-                // هنا ممكن تزود اكشنات للإشعارات لاحقاً
               },
-              onlyUnread: true,
-            ),*/
+            ),
           ],
         ),
         body: SafeArea(
@@ -277,10 +320,10 @@ class _DriverHomePageState extends State<DriverHomePage> {
             );
             break;
           case 'تقارير':
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('التقارير - قريباً\nإجمالي الطلبات المكتملة: $completedOrdersCount'),
-                backgroundColor: Colors.green.shade800,
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ReportDelevery(phone: widget.phone),
               ),
             );
             break;

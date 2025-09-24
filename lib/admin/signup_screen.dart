@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import '../services/Api/user_service.dart';
 import 'HomePage.dart';
@@ -19,43 +17,9 @@ class _AdminSignupScreenState extends State<AdminSignupScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
-  final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _notesController = TextEditingController();
 
   final UserService _userService = UserService();
-  File? _pickedImageFile;
   bool _isLoading = false;
-
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final source = await showDialog<ImageSource>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("اختر مصدر الصورة"),
-        actions: [
-          TextButton.icon(
-            onPressed: () => Navigator.pop(context, ImageSource.camera),
-            icon: const Icon(Icons.camera_alt),
-            label: const Text("الكاميرا"),
-          ),
-          TextButton.icon(
-            onPressed: () => Navigator.pop(context, ImageSource.gallery),
-            icon: const Icon(Icons.image),
-            label: const Text("المعرض"),
-          ),
-        ],
-      ),
-    );
-
-    if (source == null) return;
-
-    final pickedFile = await picker.pickImage(source: source, imageQuality: 70);
-    if (pickedFile != null) {
-      setState(() {
-        _pickedImageFile = File(pickedFile.path);
-      });
-    }
-  }
 
   void _showSnackBar(String message, {bool success = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -79,26 +43,16 @@ class _AdminSignupScreenState extends State<AdminSignupScreen> {
       final phone = _phoneController.text.trim();
       final password = _passwordController.text.trim();
       final passwordConfirmation = _confirmPasswordController.text.trim();
-      final address = _addressController.text.trim();
-      final notes = _notesController.text.trim();
 
       try {
-        MultipartFile? imageFile;
-        if (_pickedImageFile != null) {
-          imageFile = await MultipartFile.fromFile(
-            _pickedImageFile!.path,
-            filename: _pickedImageFile!.path.split("/").last,
-          );
-        }
-
         final response = await _userService.createAdminUser(
           name: name,
           phone: phone,
           password: password,
           passwordConfirmation: passwordConfirmation,
-          address: address,
-          notes: notes.isEmpty ? '00' : notes,
-          image: imageFile,
+          address: '', // تم إلغاء العنوان
+          notes: '00', // تم إلغاء الملاحظات
+          image: null, // تم إلغاء الصورة
         );
 
         if (response.statusCode == 200 || response.statusCode == 201) {
@@ -221,52 +175,6 @@ class _AdminSignupScreenState extends State<AdminSignupScreen> {
                       validator: (value) => value != _passwordController.text
                           ? "كلمتا المرور غير متطابقتين"
                           : null,
-                    ),
-                    const SizedBox(height: 16),
-
-                    TextFormField(
-                      controller: _addressController,
-                      textAlign: TextAlign.right,
-                      decoration: const InputDecoration(labelText: "العنوان"),
-                      validator: (value) =>
-                          value!.isEmpty ? "الرجاء إدخال العنوان" : null,
-                    ),
-                    const SizedBox(height: 16),
-
-                    TextFormField(
-                      controller: _notesController,
-                      textAlign: TextAlign.right,
-                      decoration: const InputDecoration(
-                        labelText: "ملاحظات (اختياري)",
-                        hintText: "00",
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // صورة الأدمن
-                    Center(
-                      child: Column(
-                        children: [
-                          CircleAvatar(
-                            radius: 40,
-                            backgroundColor: Colors.grey,
-                            backgroundImage: _pickedImageFile != null
-                                ? FileImage(_pickedImageFile!)
-                                : null,
-                            child: _pickedImageFile == null
-                                ? const Icon(
-                                    Icons.person,
-                                    size: 40,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                          TextButton(
-                            onPressed: _pickImage,
-                            child: const Text('اختيار صورة الأدمن'),
-                          ),
-                        ],
-                      ),
                     ),
                     const SizedBox(height: 24),
 
