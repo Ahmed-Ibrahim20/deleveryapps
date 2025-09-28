@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/Api/order_service.dart';
 
 class AcceptedOrdersPage extends StatefulWidget {
@@ -46,6 +47,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
           // طباعة تفاصيل كل طلب للتشخيص
           for (var order in ongoingOrders) {
             print('🔍 Order ${order['id']} - Status: ${order['status']} - Customer: ${order['customer_name']}');
+            print('🏪 Store info from added_by: ${order['added_by']}');
           }
           
           setState(() {
@@ -97,10 +99,14 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
       final orderId = order['id']?.toString() ?? '';
       final customerName = order['customer_name']?.toString() ?? '';
       final storeName = order['store_name']?.toString() ?? '';
+      final addedByName = order['added_by']?['name']?.toString() ?? '';
+      final addedByPhone = order['added_by']?['phone']?.toString() ?? '';
       
       return orderId.contains(searchQuery) ||
              customerName.toLowerCase().contains(searchQuery.toLowerCase()) ||
-             storeName.toLowerCase().contains(searchQuery.toLowerCase());
+             storeName.toLowerCase().contains(searchQuery.toLowerCase()) ||
+             addedByName.toLowerCase().contains(searchQuery.toLowerCase()) ||
+             addedByPhone.contains(searchQuery);
     }).toList();
   }
 
@@ -109,6 +115,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: const Color(0xFFF5F7FA),
         appBar: AppBar(
           centerTitle: true,
           title: const Text(
@@ -119,15 +126,16 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
               fontSize: 18,
             ),
           ),
-          backgroundColor: Colors.orange.shade700,
-          elevation: 0,
+          backgroundColor: const Color(0xFF2C3E50),
+          elevation: 3,
+          shadowColor: Colors.black.withOpacity(0.3),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.white),
+              icon: const Icon(Icons.refresh, color: Colors.white70),
               onPressed: _loadAcceptedOrders,
               tooltip: 'تحديث',
             ),
@@ -141,9 +149,17 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.orange.shade300),
+                  border: Border.all(color: const Color(0xFF34495E)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF34495E).withOpacity(0.2),
+                      spreadRadius: 1,
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: TextField(
                   onChanged: (value) {
@@ -151,11 +167,11 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
                       searchQuery = value;
                     });
                   },
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     hintText: 'ابحث برقم الطلب أو اسم العميل أو المتجر...',
                     border: InputBorder.none,
-                    prefixIcon: Icon(Icons.search, color: Colors.orange.shade500),
-                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    prefixIcon: Icon(Icons.search, color: Color(0xFF5D6D7E)),
+                    hintStyle: TextStyle(color: Color(0xFF85929E)),
                   ),
                 ),
               ),
@@ -165,20 +181,39 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
             if (!isLoading)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Icon(Icons.assignment_turned_in, 
-                         color: Colors.orange.shade600, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'إجمالي الطلبات الجارية: ${filteredOrders.length}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.orange.shade700,
-                      ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF5DADE2), Color(0xFF3498DB)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                  ],
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0xFF3498DB).withOpacity(0.3),
+                        spreadRadius: 1,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.assignment_turned_in, 
+                           color: Colors.white, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'إجمالي الطلبات الجارية: ${filteredOrders.length}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
@@ -200,13 +235,17 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: Colors.orange),
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8E44AD)),
+              strokeWidth: 3,
+            ),
             SizedBox(height: 16),
             Text(
               'جاري تحميل الطلبات الجارية...',
               style: TextStyle(
                 fontSize: 16,
-                color: Colors.grey,
+                color: Color(0xFF5D6D7E),
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -219,17 +258,18 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.error_outline,
               size: 64,
-              color: Colors.red.shade400,
+              color: Color(0xFFE74C3C),
             ),
             const SizedBox(height: 16),
             Text(
               errorMessage!,
               style: const TextStyle(
                 fontSize: 16,
-                color: Colors.red,
+                color: Color(0xFF5D6D7E),
+                fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,
             ),
@@ -237,8 +277,13 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
             ElevatedButton(
               onPressed: _loadAcceptedOrders,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: const Color(0xFF8E44AD),
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
               ),
               child: const Text('إعادة المحاولة'),
             ),
@@ -252,29 +297,29 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.assignment_outlined,
               size: 64,
-              color: Colors.grey.shade400,
+              color: Color(0xFFADB5BD),
             ),
             const SizedBox(height: 16),
             Text(
               searchQuery.isEmpty 
                 ? 'لا توجد طلبات جارية حالياً'
                 : 'لا توجد نتائج للبحث',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 18,
-                color: Colors.grey.shade600,
+                color: Color(0xFF5D6D7E),
                 fontWeight: FontWeight.w500,
               ),
             ),
             if (searchQuery.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(
+              const Text(
                 'جرب البحث بكلمات أخرى',
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.grey.shade500,
+                  color: Color(0xFF85929E),
                 ),
               ),
             ],
@@ -285,7 +330,8 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
 
     return RefreshIndicator(
       onRefresh: _loadAcceptedOrders,
-      color: Colors.orange,
+      color: const Color(0xFF8E44AD),
+      backgroundColor: Colors.white,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: filteredOrders.length,
@@ -305,12 +351,13 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF34495E), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: const Color(0xFF2C3E50).withOpacity(0.15),
+            spreadRadius: 0,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -323,7 +370,12 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.orange.shade50, Colors.orange.shade100],
+                colors: [Color(0xFF34495E), Color(0xFF2C3E50)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border(
+                bottom: BorderSide(color: Color(0xFF1B2631), width: 1),
               ),
             ),
             child: Row(
@@ -331,10 +383,10 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
               children: [
                 Text(
                   'طلب رقم ${order['id'] ?? 'غير محدد'}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
-                    color: Colors.orange[800]!,
+                    color: Colors.white,
                   ),
                 ),
                 Container(
@@ -343,7 +395,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade500,
+                    color: const Color(0xFF27AE60),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Text(
@@ -362,13 +414,16 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
           // Store Info Section
           _buildCleanSection(
             title: "معلومات المتجر",
-            color: Colors.blue.shade50,
-            borderColor: Colors.blue.shade100,
+            color: const Color(0xFFEBF0F5),
+            borderColor: const Color(0xFFD5DBDB),
             children: [
               _buildNamePhoneRow(
-                order['store_name'] ?? 'غير محدد',
-                order['store_phone'] ?? 'غير محدد',
+                // محاولة الحصول على اسم المتجر من added_by أولاً، ثم من store_name
+                order['added_by']?['name'] ?? order['store_name'] ?? 'غير محدد',
+                // محاولة الحصول على هاتف المتجر من added_by أولاً، ثم من store_phone
+                order['added_by']?['phone'] ?? order['store_phone'] ?? 'غير محدد',
               ),
+              // عرض العنوان إذا كان متوفر
               if (order['store_address'] != null)
                 _buildAddressRow(order['store_address']),
             ],
@@ -377,8 +432,8 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
           // Customer Info Section
           _buildCleanSection(
             title: "معلومات العميل",
-            color: Colors.green.shade50,
-            borderColor: Colors.green.shade100,
+            color: const Color(0xFFEBF5FB),
+            borderColor: const Color(0xFFAED6F1),
             children: [
               _buildNamePhoneRow(
                 order['customer_name'] ?? 'غير محدد',
@@ -388,13 +443,12 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
                 _buildAddressRow(order['delivery_address']),
             ],
           ),
-
           // Driver Info Section
           if (order['delivery_name'] != null)
             _buildCleanSection(
               title: "معلومات السائق",
-              color: Colors.purple.shade50,
-              borderColor: Colors.purple.shade100,
+              color: const Color(0xFFEAF2F8),
+              borderColor: const Color(0xFFABB2B9),
               children: [
                 _buildNamePhoneRow(
                   order['delivery_name'] ?? 'غير محدد',
@@ -407,55 +461,33 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              gradient: LinearGradient(
+                colors: [Color(0xFFFEF9E7), Color(0xFFFCF3CF)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
               border: Border(
-                top: BorderSide(color: Colors.grey.shade200, width: 1),
+                top: BorderSide(color: Color(0xFFD5DBDB), width: 1),
               ),
             ),
-            child: Column(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'إجمالي المبلغ:',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    Text(
-                      '${order['total_amount'] ?? '0'} جنيه',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green.shade700,
-                      ),
-                    ),
-                  ],
+                const Text(
+                  'رسوم التوصيل:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF5D6D7E),
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'رسوم التوصيل:',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.orange,
-                      ),
-                    ),
-                    Text(
-                      '${order['delivery_fee'] ?? '0'} جنيه',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange.shade800,
-                      ),
-                    ),
-                  ],
+                Text(
+                  '${order['delivery_fee'] ?? '0'} جنيه',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF27AE60),
+                  ),
                 ),
               ],
             ),
@@ -467,13 +499,13 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+                  const Icon(Icons.access_time, size: 16, color: Color(0xFF5D6D7E)),
                   const SizedBox(width: 6),
                   Text(
                     'تاريخ الطلب: ${_formatDate(order['created_at'])}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade600,
+                      color: Color(0xFF5D6D7E),
                     ),
                   ),
                 ],
@@ -504,21 +536,21 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
           Row(
             children: [
               if (title == "معلومات المتجر") ...[
-                Icon(Icons.store, size: 16, color: Colors.blue[800]!),
+                const Icon(Icons.store, size: 16, color: Color(0xFF3498DB)),
                 const SizedBox(width: 6),
               ] else if (title == "معلومات العميل") ...[
-                Icon(Icons.person, size: 16, color: Colors.green[800]!),
+                const Icon(Icons.person, size: 16, color: Color(0xFF8E44AD)),
                 const SizedBox(width: 6),
               ] else if (title == "معلومات السائق") ...[
-                Icon(Icons.delivery_dining, size: 16, color: Colors.purple[800]!),
+                const Icon(Icons.delivery_dining, size: 16, color: Color(0xFF27AE60)),
                 const SizedBox(width: 6),
               ],
               Text(
                 title,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Colors.blue[800]!,
+                  color: Color(0xFF2C3E50),
                 ),
               ),
             ],
@@ -528,6 +560,44 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
         ],
       ),
     );
+  }
+
+  // إضافة دالة الاتصال
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    if (phoneNumber == 'غير محدد' || phoneNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('رقم الهاتف غير متوفر'),
+          backgroundColor: Color(0xFFE74C3C),
+        ),
+      );
+      return;
+    }
+
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('لا يمكن فتح تطبيق الهاتف'),
+              backgroundColor: Color(0xFFE74C3C),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('حدث خطأ أثناء محاولة الاتصال'),
+            backgroundColor: Color(0xFFE74C3C),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildNamePhoneRow(String name, String phone) {
@@ -540,12 +610,12 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
             flex: 3,
             child: Row(
               children: [
-                Text(
+                const Text(
                   'الاسم: ',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade600,
+                    color: Color(0xFF5D6D7E),
                   ),
                 ),
                 Expanded(
@@ -554,7 +624,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: Color(0xFF2C3E50),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -564,37 +634,64 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
             ),
           ),
           const SizedBox(width: 8),
-          // الهاتف مع label
+          // الهاتف مع label قابل للنقر
           Expanded(
             flex: 2,
             child: Row(
               children: [
-                Text(
+                const Text(
                   'هاتف: ',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade600,
+                    color: Color(0xFF5D6D7E),
                   ),
                 ),
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.shade200, width: 0.5),
-                    ),
-                    child: Text(
-                      phone,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.blue.shade700,
+                  child: GestureDetector(
+                    onTap: () => _makePhoneCall(phone),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF27AE60), Color(0xFF229954)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0xFF27AE60).withOpacity(0.4),
+                            spreadRadius: 1,
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.phone,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              phone,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -611,20 +708,20 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Text(
+          const Text(
             'العنوان: ',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: Colors.grey.shade600,
+              color: Color(0xFF5D6D7E),
             ),
           ),
           Expanded(
             child: Text(
               address,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade700,
+                color: Color(0xFF34495E),
                 fontWeight: FontWeight.w500,
               ),
               maxLines: 2,

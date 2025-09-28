@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/Api/order_service.dart';
+import '../services/pdf_service.dart';
 
 class PreviousOrdersScreenShope extends StatefulWidget {
   final String phone;
@@ -216,31 +218,68 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: Colors.blue,
-          elevation: 0,
+          backgroundColor: Colors.white,
+          elevation: 1,
+          shadowColor: Colors.grey.shade200,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back_ios, color: Colors.grey.shade700, size: 20),
             onPressed: () => Navigator.pop(context),
           ),
           title: Row(
-            children: const [
-              Expanded(
-                child: Text(
-                  'سجل الطلبات السابقة',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
+            children: [
+              Icon(Icons.history, color: Colors.blue.shade600, size: 22),
+              const SizedBox(width: 8),
+              const Text(
+                'الطلبات السابقة',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
                 ),
               ),
-              SizedBox(width: 8),
-              Icon(Icons.history, color: Colors.blueAccent),
             ],
           ),
+          actions: [
+            // PDF Download Button
+            IconButton(
+              onPressed: orders.isNotEmpty ? _downloadPDF : null,
+              icon: Icon(
+                Icons.download,
+                color: orders.isNotEmpty ? Colors.blue.shade600 : Colors.grey,
+                size: 20,
+              ),
+              tooltip: 'تحميل PDF',
+            ),
+            // PDF Preview Button
+            IconButton(
+              onPressed: orders.isNotEmpty ? _previewPDF : null,
+              icon: Icon(
+                Icons.preview,
+                color: orders.isNotEmpty ? Colors.blue.shade600 : Colors.grey,
+                size: 20,
+              ),
+              tooltip: 'معاينة PDF',
+            ),
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Text(
+                '${orders.length}',
+                style: TextStyle(
+                  color: Colors.blue.shade700,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
         ),
+        backgroundColor: Colors.grey.shade50,
         body: RefreshIndicator(
           onRefresh: () async {
             await _loadOrders();
@@ -248,155 +287,110 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
           child: Column(
             children: [
               // Date Filter Section
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.date_range,
-                              color: Colors.blueAccent,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'فلترة بالتاريخ',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blueAccent,
-                              ),
-                            ),
-                            const Spacer(),
-                            if (fromDate != null || toDate != null)
-                              TextButton(
-                                onPressed: _clearDateFilters,
-                                child: const Text(
-                                  'مسح',
-                                  style: TextStyle(color: Colors.red),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _selectDate(context, true),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade600),
+                              const SizedBox(width: 8),
+                              Text(
+                                fromDate != null ? _formatDate(fromDate!.toIso8601String()) : 'من تاريخ',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: fromDate != null ? Colors.black87 : Colors.grey.shade600,
                                 ),
                               ),
-                          ],
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () => _selectDate(context, true),
-                                child: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.calendar_today,
-                                        size: 16,
-                                        color: Colors.grey,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        fromDate != null
-                                            ? _formatDate(
-                                                fromDate!.toIso8601String(),
-                                              )
-                                            : 'من تاريخ',
-                                        style: TextStyle(
-                                          color: fromDate != null
-                                              ? Colors.black
-                                              : Colors.grey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () => _selectDate(context, false),
-                                child: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.calendar_today,
-                                        size: 16,
-                                        color: Colors.grey,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        toDate != null
-                                            ? _formatDate(
-                                                toDate!.toIso8601String(),
-                                              )
-                                            : 'إلى تاريخ',
-                                        style: TextStyle(
-                                          color: toDate != null
-                                              ? Colors.black
-                                              : Colors.grey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _selectDate(context, false),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade600),
+                              const SizedBox(width: 8),
+                              Text(
+                                toDate != null ? _formatDate(toDate!.toIso8601String()) : 'إلى تاريخ',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: toDate != null ? Colors.black87 : Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (fromDate != null || toDate != null) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _clearDateFilters,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(Icons.clear, size: 16, color: Colors.red.shade600),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
 
               // Search bar
-              Padding(
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blueAccent),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'ابحث برقم الطلب أو اسم العميل...',
+                    hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                    border: InputBorder.none,
+                    icon: Icon(Icons.search, color: Colors.grey.shade600, size: 18),
+                    suffixIcon: searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.clear, color: Colors.grey.shade600, size: 18),
+                            onPressed: _clearSearch,
+                          )
+                        : null,
                   ),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'ابحث برقم الطلب أو اسم العميل أو الهاتف...',
-                      border: InputBorder.none,
-                      icon: const Icon(Icons.search, color: Colors.blueAccent),
-                      suffixIcon: searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, color: Colors.grey),
-                              onPressed: _clearSearch,
-                            )
-                          : null,
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        searchQuery = value.trim();
-                      });
-                      _applyFilters();
-                    },
-                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      searchQuery = value.trim();
+                    });
+                    _applyFilters();
+                  },
                 ),
               ),
 
@@ -452,7 +446,7 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       itemCount: filteredOrders.length,
       itemBuilder: (context, index) {
         final order = filteredOrders[index];
@@ -462,11 +456,40 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
   }
 
   // Make phone call function
-  void _makePhoneCall(String phoneNumber) async {
-    if (phoneNumber.isNotEmpty && phoneNumber != 'غير محدد') {
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    if (phoneNumber.isEmpty || phoneNumber == 'غير محدد') {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('جاري فتح الهاتف للرقم: $phoneNumber')),
+          const SnackBar(
+            content: Text('رقم الهاتف غير متوفر'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('لا يمكن فتح تطبيق الهاتف'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ في الاتصال: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -597,249 +620,344 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
     final delivery = order['delivery'] as Map<String, dynamic>?;
     final currentUserRole = userData!['role'];
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Order Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Icon(
-                        Icons.receipt_long,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'طلب رقم ${order['id']}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'مكتمل',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 8),
-
-            // Order Date
-            Row(
-              children: [
-                Icon(Icons.access_time, color: Colors.grey, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  'التاريخ: ${_formatDate(order['created_at'] ?? '')}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 8),
-
-            // Customer Info - Simplified
-            Row(
-              children: [
-                Icon(Icons.person, color: Colors.blue, size: 16),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    order['customer_name'] ?? 'غير محدد',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 6),
-
-            // Phone - Clickable
-            GestureDetector(
-              onTap: () => _makePhoneCall(order['customer_phone'] ?? ''),
-              child: Row(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
                 children: [
-                  Icon(Icons.phone, color: Colors.blue, size: 16),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Icon(Icons.receipt, color: Colors.blue.shade600, size: 14),
+                  ),
                   const SizedBox(width: 6),
                   Text(
-                    order['customer_phone'] ?? 'غير محدد',
+                    'طلب #${order['id']}',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.blue,
-                      decoration: TextDecoration.underline,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
                     ),
                   ),
                 ],
               ),
-            ),
-
-            const SizedBox(height: 6),
-
-            // Address
-            Row(
-              children: [
-                Icon(Icons.location_on, color: Colors.grey, size: 16),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    order['customer_address'] ?? 'غير محدد',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-
-            // Show different info based on user role
-            const SizedBox(height: 8),
-            Divider(color: Colors.grey.shade300, height: 1),
-            const SizedBox(height: 8),
-
-            // For delivery users (role = 1): show store info (added_by)
-            if (currentUserRole == 1 && addedBy != null) ...[
               Row(
                 children: [
-                  Icon(Icons.store, color: Colors.blue, size: 16),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'المحل: ${addedBy['name'] ?? 'غير محدد'}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.blue,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () => _makePhoneCall(addedBy['phone'] ?? ''),
-                          child: Text(
-                            'هاتف: ${addedBy['phone'] ?? 'غير محدد'}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.blue,
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                      ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'مكتمل',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ],
-              ),
-            ]
-            // For store users (role = 2): show delivery info
-            else if (currentUserRole == 2 && delivery != null) ...[
-              Row(
-                children: [
-                  Icon(Icons.delivery_dining, color: Colors.green, size: 16),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'الدليفري: ${delivery['name'] ?? 'غير محدد'}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.green,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () => _makePhoneCall(delivery['phone'] ?? ''),
-                          child: Text(
-                            'هاتف: ${delivery['phone'] ?? 'غير محدد'}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.green,
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                      ],
+                  const SizedBox(width: 8),
+                  Text(
+                    '${order['delivery_fee'] ?? '0'} ج',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange.shade700,
                     ),
                   ),
                 ],
               ),
             ],
-
-            const SizedBox(height: 12),
-
-            // Delivery Fee Only
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Customer Info
+          Row(
+            children: [
+              Icon(Icons.person, color: Colors.grey.shade600, size: 14),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  order['customer_name'] ?? 'غير محدد',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _makePhoneCall(order['customer_phone'] ?? ''),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.phone, color: Colors.blue.shade600, size: 12),
+                      const SizedBox(width: 2),
+                      Text(
+                        order['customer_phone'] ?? 'غير محدد',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.blue.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 6),
+          
+          // Address
+          Row(
+            children: [
+              Icon(Icons.location_on, color: Colors.grey.shade600, size: 14),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  order['customer_address'] ?? 'غير محدد',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          
+          // Store/Driver Info
+          if (currentUserRole == 1 && addedBy != null) ...[
+            const SizedBox(height: 6),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.local_shipping, color: Colors.orange, size: 16),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'رسوم التوصيل:',
+                Icon(Icons.store, color: Colors.orange.shade600, size: 14),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    addedBy['name'] ?? 'غير محدد',
+                    style: TextStyle(fontSize: 11, color: Colors.orange.shade700),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => _makePhoneCall(addedBy['phone'] ?? ''),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      addedBy['phone'] ?? 'غير محدد',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 10,
+                        color: Colors.orange.shade700,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                  ],
+                  ),
                 ),
-                Text(
-                  '${order['delivery_fee'] ?? '0'} جنيه',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange,
+              ],
+            ),
+          ] else if (currentUserRole == 2 && delivery != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.delivery_dining, color: Colors.green.shade600, size: 14),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    delivery['name'] ?? 'غير محدد',
+                    style: TextStyle(fontSize: 11, color: Colors.green.shade700),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => _makePhoneCall(delivery['phone'] ?? ''),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      delivery['phone'] ?? 'غير محدد',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ],
-        ),
+          
+          const SizedBox(height: 6),
+          
+          // Date
+          Row(
+            children: [
+              Icon(Icons.access_time, color: Colors.grey.shade600, size: 12),
+              const SizedBox(width: 4),
+              Text(
+                _formatDate(order['created_at'] ?? ''),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
+  }
+
+  // PDF Download Function
+  Future<void> _downloadPDF() async {
+    if (orders.isEmpty) return;
+
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('جاري إنشاء ملف PDF...'),
+            ],
+          ),
+        ),
+      );
+
+      // Generate filename with date range
+      String fileName = 'تقرير_الطلبات_السابقة_${userData?['name'] ?? 'المتجر'}_${DateTime.now().toString().substring(0, 19).replaceAll(':', '-')}.pdf';
+
+      // Create PDF data for shop orders
+      Map<String, dynamic> pdfData = {
+        'shop_name': userData?['name'] ?? 'المتجر',
+        'phone': userData?['phone'] ?? '',
+        'total_orders': orders.length,
+        'total_delivery_fees': orders.fold(0.0, (sum, order) => sum + (double.tryParse(order['delivery_fee']?.toString() ?? '0') ?? 0)),
+        'orders': orders,
+        'from_date': fromDate?.toIso8601String(),
+        'to_date': toDate?.toIso8601String(),
+      };
+
+      // Generate PDF
+      String result = await PDFService.generateShopOrdersPDF(pdfData, fileName);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.contains('تم تحميل') ? result : 'تم حفظ الملف بنجاح'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ في إنشاء ملف PDF: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  // PDF Preview Function
+  Future<void> _previewPDF() async {
+    if (orders.isEmpty) return;
+
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('جاري تحضير المعاينة...'),
+            ],
+          ),
+        ),
+      );
+
+      // Create PDF data for shop orders
+      Map<String, dynamic> pdfData = {
+        'shop_name': userData?['name'] ?? 'المتجر',
+        'phone': userData?['phone'] ?? '',
+        'total_orders': orders.length,
+        'total_delivery_fees': orders.fold(0.0, (sum, order) => sum + (double.tryParse(order['delivery_fee']?.toString() ?? '0') ?? 0)),
+        'orders': orders,
+        'from_date': fromDate?.toIso8601String(),
+        'to_date': toDate?.toIso8601String(),
+      };
+
+      // Preview PDF
+      await PDFService.previewShopOrdersPDF(pdfData);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ في معاينة ملف PDF: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 }

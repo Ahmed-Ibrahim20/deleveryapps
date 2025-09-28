@@ -9,6 +9,7 @@ import './order_screen.dart';
 import './ReportDelevery.dart';
 import './nofication_delivery.dart';
 import '../services/Api/order_service.dart';
+import '../services/Api/user_service.dart';
 import '../providers/notification_provider.dart';
 import '../models/notification_model.dart';
 
@@ -29,16 +30,21 @@ class _DriverHomePageState extends State<DriverHomePage> {
   int completedOrdersCount = 0;
   bool isLoading = true;
 
+  // متغير للتحكم في حالة النشاط
+  bool isActiveNow = false;
+  bool isTogglingStatus = false; // متغير لحالة التحميل عند تبديل الحالة
+
   @override
   void initState() {
     super.initState();
     _loadUserDataAndCounts();
-    
+
     // تهيئة الإشعارات
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         try {
-          final provider = Provider.of<NotificationProvider>(context, listen: false);
+          final provider =
+              Provider.of<NotificationProvider>(context, listen: false);
           provider.updateUserRole(UserRole.driver);
           provider.fetchNotifications();
         } catch (e) {
@@ -50,7 +56,6 @@ class _DriverHomePageState extends State<DriverHomePage> {
 
   Future<void> _loadUserDataAndCounts() async {
     try {
-      // Get user data from SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       final userName = prefs.getString('name') ?? 'مستخدم';
       final userPhone = prefs.getString('phone') ?? widget.phone;
@@ -58,7 +63,10 @@ class _DriverHomePageState extends State<DriverHomePage> {
       final userId = prefs.getInt('user_id') ?? 0;
       final userEmail = prefs.getString('email') ?? '';
       final isApproved = prefs.getBool('is_approved') ?? false;
-      final isActive = prefs.getBool('is_active') ?? false;
+      // تحميل حالة النشاط المحفوظة (أولوية للـ is_available ثم is_active)
+      final savedIsAvailable = prefs.getBool('is_available');
+      final savedIsActive = prefs.getBool('is_active') ?? false;
+      final finalActiveStatus = savedIsAvailable ?? savedIsActive;
 
       setState(() {
         name = 'مرحباً، $userName';
@@ -69,11 +77,13 @@ class _DriverHomePageState extends State<DriverHomePage> {
           'email': userEmail,
           'role': userRole,
           'is_approved': isApproved,
-          'is_active': isActive,
+          'is_active': finalActiveStatus,
+          'is_available': finalActiveStatus,
         };
+        // تحديث حالة النشاط الحالية بناءً على ما تم حفظه
+        isActiveNow = finalActiveStatus;
       });
 
-      // Load order counts
       await _loadOrderCounts();
     } catch (e) {
       print('❌ خطأ في تحميل بيانات المستخدم: $e');
@@ -93,10 +103,10 @@ class _DriverHomePageState extends State<DriverHomePage> {
       if (response.statusCode == 200 && response.data != null) {
         final responseData = response.data['data'];
         if (responseData != null && responseData['data'] is List) {
-          final allOrders = List<Map<String, dynamic>>.from(responseData['data']);
+          final allOrders =
+              List<Map<String, dynamic>>.from(responseData['data']);
           final currentUserId = userData!['id'];
 
-          // Count orders for delivery user
           int newCount = 0;
           int currentCount = 0;
           int completedCount = 0;
@@ -106,22 +116,21 @@ class _DriverHomePageState extends State<DriverHomePage> {
             final orderDeliveryId = order['delivery_id'];
 
             switch (orderStatus) {
-              case 0: // New orders available for all delivery users
+              case 0: // طلبات جديدة
                 newCount++;
                 break;
-              case 1: // Orders accepted by this delivery user
+              case 1: // طلبات قيد التنفيذ
                 if (orderDeliveryId == currentUserId) {
                   currentCount++;
                 }
                 break;
-              case 2: // Orders completed by this delivery user
+              case 2: // طلبات مكتملة
                 if (orderDeliveryId == currentUserId) {
                   completedCount++;
                 }
                 break;
             }
           }
-
           setState(() {
             newOrdersCount = newCount;
             currentOrdersCount = currentCount;
@@ -138,6 +147,89 @@ class _DriverHomePageState extends State<DriverHomePage> {
     }
   }
 
+  // دالة تحديث حالة النشاط باستخدام API
+  Future<void> _toggleActiveStatus() async {
+    if (isTogglingStatus) return; // منع النقر المتكرر
+
+    setState(() {
+      isTogglingStatus = true;
+    });
+
+    try {
+      final userService = UserService();
+      final response = await userService.toggleMyAvailability(isActiveNow);
+
+      print('🔄 Toggle Availability Response: ${response.statusCode}');
+      print('📦 Response Data: ${response.data}');
+
+      if (response.statusCode == 200 && response.data != null) {
+        final responseData = response.data;
+        
+        if (responseData['status'] == true && responseData['data'] != null) {
+          final newAvailabilityStatus = responseData['data']['is_available'] ?? false;
+          final statusMessage = responseData['message'] ?? 'تم تحديث الحالة';
+          
+          // تحديث الحالة المحلية
+          setState(() {
+            isActiveNow = newAvailabilityStatus;
+          });
+          
+          // حفظ الحالة في SharedPreferences
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('is_active', newAvailabilityStatus);
+          await prefs.setBool('is_available', newAvailabilityStatus);
+          
+          // عرض رسالة نجاح
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  statusMessage,
+                  style: const TextStyle(color: Colors.white),
+                ),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          
+          print('✅ حالة التوفر تم تحديثها إلى: $newAvailabilityStatus');
+        } else {
+          throw Exception('استجابة غير صحيحة من الخادم');
+        }
+      } else {
+        throw Exception('فشل في تحديث حالة التوفر');
+      }
+    } catch (e) {
+      print('❌ خطأ في تبديل حالة التوفر: $e');
+      
+      // عرض رسالة خطأ
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'حدث خطأ في تحديث حالة التوفر. حاول مرة أخرى.',
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'حاول مرة أخرى',
+              textColor: Colors.white,
+              onPressed: () => _toggleActiveStatus(),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isTogglingStatus = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -147,7 +239,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
         appBar: AppBar(
           backgroundColor: Colors.blue,
           foregroundColor: Colors.white,
-          automaticallyImplyLeading: false, // Remove back button
+          automaticallyImplyLeading: false,
           title: Text(
             name,
             style: const TextStyle(
@@ -163,18 +255,21 @@ class _DriverHomePageState extends State<DriverHomePage> {
                   return badges.Badge(
                     badgeContent: Text(
                       provider.unreadCount.toString(),
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      style:
+                          const TextStyle(color: Colors.white, fontSize: 12),
                     ),
                     badgeStyle: const badges.BadgeStyle(
                       badgeColor: Colors.red,
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.delivery_dining, color: Colors.white, size: 28),
+                      icon: const Icon(Icons.delivery_dining,
+                          color: Colors.white, size: 28),
                       onPressed: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => NotificationDelivery(phone: widget.phone),
+                            builder: (context) =>
+                                NotificationDelivery(phone: widget.phone),
                           ),
                         );
                       },
@@ -182,12 +277,14 @@ class _DriverHomePageState extends State<DriverHomePage> {
                   );
                 }
                 return IconButton(
-                  icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
+                  icon: const Icon(Icons.notifications_none,
+                      color: Colors.white, size: 28),
                   onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => NotificationDelivery(phone: widget.phone),
+                        builder: (context) =>
+                            NotificationDelivery(phone: widget.phone),
                       ),
                     );
                   },
@@ -198,9 +295,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
         ),
         body: SafeArea(
           child: RefreshIndicator(
-            onRefresh: () async {
-              await _loadUserDataAndCounts();
-            },
+            onRefresh: _loadUserDataAndCounts,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
@@ -270,6 +365,64 @@ class _DriverHomePageState extends State<DriverHomePage> {
             ),
           ),
         ),
+
+        // -->> زر تبديل حالة التوفر مع API <<--
+        bottomNavigationBar: Container(
+          padding: const EdgeInsets.all(12),
+          color: Colors.white,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isTogglingStatus 
+                  ? Colors.grey 
+                  : (isActiveNow ? Colors.green : Colors.red),
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: isTogglingStatus ? 0 : 3,
+            ),
+            onPressed: isTogglingStatus ? null : _toggleActiveStatus,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (isTogglingStatus) ...[
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    "جاري التحديث...",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ] else ...[
+                  Icon(
+                    isActiveNow ? Icons.check_circle : Icons.cancel,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isActiveNow ? "متاح للتوصيل" : "غير متاح للتوصيل",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -307,7 +460,8 @@ class _DriverHomePageState extends State<DriverHomePage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => order_detailes_shope(phone: widget.phone),
+                builder: (context) =>
+                    order_detailes_shope(phone: widget.phone),
               ),
             );
             break;
@@ -364,7 +518,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const Spacer(),
               if (isLoading)
                 SizedBox(
                   height: 12,

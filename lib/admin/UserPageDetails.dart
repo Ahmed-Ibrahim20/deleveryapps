@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/Api/user_service.dart';
 
 class UserPageDetails extends StatefulWidget {
@@ -33,8 +36,11 @@ class _UserPageDetailsState extends State<UserPageDetails>
   int completedOrders = 0;
   int inProgressOrders = 0;
   double totalDelivery = 0.0;
+  double totalOrdersValue = 0.0; // للمحلات فقط
   double appPercentage = 0.0;
   double appCommission = 0.0;
+  double netProfit = 0.0;
+  bool isLoadingStats = false;
 
   @override
   void initState() {
@@ -64,15 +70,104 @@ class _UserPageDetailsState extends State<UserPageDetails>
       createdAt = widget.user['created_at'] ?? 'غير محدد';
       updatedAt = widget.user['updated_at'] ?? 'غير محدد';
 
-      // Statistics (mock data for now)
-      completedOrders = _parseInt(widget.user['completed_orders']);
-      inProgressOrders = _parseInt(widget.user['in_progress_orders']);
-      totalDelivery = _parseDouble(widget.user['total_delivery']);
-      appPercentage = _parseDouble(widget.user['app_percentage']);
-      appCommission = _parseDouble(widget.user['app_commission']);
-
       _commissionController.text = commissionPercentage.toString();
     });
+    
+    // تحميل الإحصائيات من الـ API
+    _loadStatistics();
+  }
+
+  // دالة جلب الإحصائيات من الـ API
+  Future<void> _loadStatistics() async {
+    setState(() {
+      isLoadingStats = true;
+    });
+
+    try {
+      final userId = widget.user['id'];
+      final userRole = widget.user['role'];
+      
+      print('معرف المستخدم: $userId');
+      print('دور المستخدم: $userRole');
+      
+      String endpoint;
+      if (userRole == 1) {
+        // سائق
+        endpoint = 'http://127.0.0.1:8000/api/v1/dashboard/reports/delivery/$userId';
+      } else if (userRole == 2) {
+        // محل
+        endpoint = 'http://127.0.0.1:8000/api/v1/dashboard/reports/shop/$userId';
+      } else {
+        // إذا لم يكن سائق أو محل، لا نحمل إحصائيات
+        print('المستخدم ليس سائق أو محل');
+        setState(() {
+          isLoadingStats = false;
+        });
+        return;
+      }
+      
+      print('رابط الـ API: $endpoint');
+
+      // جلب التوكن من SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      
+      if (token == null) {
+        print('لا يوجد توكن');
+        setState(() {
+          isLoadingStats = false;
+        });
+        return;
+      }
+
+      final response = await http.get(
+        Uri.parse(endpoint),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
+      
+      print('رد الـ API: ${response.statusCode}');
+      print('محتوى الرد: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        if (data['status'] == true && data['data'] != null) {
+          final reportData = data['data'];
+          
+          setState(() {
+            completedOrders = reportData['completed_orders_count'] ?? 0;
+            appPercentage = _parseDouble(reportData['application_percentage']);
+            appCommission = _parseDouble(reportData['application_commission']);
+            netProfit = _parseDouble(reportData['net_profit']);
+            
+            if (userRole == 1) {
+              // بيانات السائق
+              totalDelivery = _parseDouble(reportData['total_delivery_fees']);
+            } else if (userRole == 2) {
+              // بيانات المحل
+              totalOrdersValue = _parseDouble(reportData['total_orders_value']);
+              totalDelivery = _parseDouble(reportData['total_delivery_fees']);
+            }
+          });
+          print('تم تحديث البيانات بنجاح');
+        } else {
+          print('فشل في جلب البيانات: ${data['message'] ?? 'خطأ غير محدد'}');
+        }
+      } else {
+        print('خطأ في الـ API: ${response.statusCode}');
+        print('رسالة الخطأ: ${response.body}');
+      }
+    } catch (e) {
+      print('خطأ في تحميل الإحصائيات: $e');
+    } finally {
+      setState(() {
+        isLoadingStats = false;
+      });
+    }
   }
 
   // Helper methods for safe type conversion
@@ -84,16 +179,6 @@ class _UserPageDetailsState extends State<UserPageDetails>
       return double.tryParse(value) ?? 0.0;
     }
     return 0.0;
-  }
-
-  int _parseInt(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    if (value is double) return value.toInt();
-    if (value is String) {
-      return int.tryParse(value) ?? 0;
-    }
-    return 0;
   }
 
   String _getRoleText(dynamic role) {
@@ -534,59 +619,131 @@ class _UserPageDetailsState extends State<UserPageDetails>
               const SizedBox(height: 20),
 
               // Statistics Grid
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatItem(
-                      '✅ الطلبات المكتملة',
-                      completedOrders.toString(),
-                      Colors.green,
-                    ),
+              if (isLoadingStats)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildStatItem(
-                      '🟡 الطلبات قيد التنفيذ',
-                      inProgressOrders.toString(),
-                      Colors.orange,
+                )
+              else if (widget.user['role'] == 1 || widget.user['role'] == 2)
+                Column(
+                  children: [
+                // إحصائيات السائقين والمحلات
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildStatItem(
+                        '✅ الطلبات المكتملة',
+                        completedOrders.toString(),
+                        Colors.green,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatItem(
-                      '💰 إجمالي رسوم التوصيل',
-                      '${totalDelivery.toStringAsFixed(2)} جنيه',
-                      Colors.blue,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildStatItem(
+                        widget.user['role'] == 2 ? '💰 إجمالي قيمة الطلبات' : '💰 إجمالي رسوم التوصيل',
+                        widget.user['role'] == 2 
+                          ? '${totalOrdersValue.toStringAsFixed(2)} جنيه'
+                          : '${totalDelivery.toStringAsFixed(2)} جنيه',
+                        Colors.blue,
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (widget.user['role'] == 2) // للمحلات فقط - عرض رسوم التوصيل أيضاً
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatItem(
+                          '🚚 رسوم التوصيل',
+                          '${totalDelivery.toStringAsFixed(2)} جنيه',
+                          Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildStatItem(
+                          '💼 نسبة التطبيق',
+                          '${appPercentage.toStringAsFixed(2)}%',
+                          Colors.purple,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildStatItem(
-                      '💼 نسبة التطبيق',
-                      '${appPercentage.toStringAsFixed(2)}%',
-                      Colors.purple,
+                if (widget.user['role'] == 1) // للسائقين فقط
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatItem(
+                          '💼 نسبة التطبيق',
+                          '${appPercentage.toStringAsFixed(2)}%',
+                          Colors.purple,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildStatItem(
+                          '🧾 عمولة التطبيق',
+                          '${appCommission.toStringAsFixed(2)} جنيه',
+                          Colors.indigo,
+                        ),
+                      ),
+                    ],
+                  ),
+                if (widget.user['role'] == 2) // للمحلات فقط
+                  const SizedBox(height: 16),
+                if (widget.user['role'] == 2) // للمحلات فقط
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatItem(
+                          '🧾 عمولة التطبيق',
+                          '${appCommission.toStringAsFixed(2)} جنيه',
+                          Colors.indigo,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildStatItem(
+                          '💵 صافي الربح',
+                          '${netProfit.toStringAsFixed(2)} جنيه',
+                          Colors.teal,
+                        ),
+                      ),
+                    ],
+                  ),
+                if (widget.user['role'] == 1) // للسائقين فقط
+                  const SizedBox(height: 16),
+                if (widget.user['role'] == 1) // للسائقين فقط
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatItem(
+                          '💵 صافي الربح',
+                          '${netProfit.toStringAsFixed(2)} جنيه',
+                          Colors.teal,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(child: Container()),
+                    ],
+                  ),
+                  ],
+                )
+              else
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'الإحصائيات متاحة للسائقين والمحلات فقط',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatItem(
-                      '🧾 عمولة التطبيق',
-                      '${appCommission.toStringAsFixed(2)} جنيه',
-                      Colors.indigo,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(child: Container()),
-                ],
-              ),
+                ),
             ],
           ),
         ),

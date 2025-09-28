@@ -410,11 +410,6 @@ class _ReportsPageDesignState extends State<ReportsPageDesign> {
               Icons.list_alt,
             ),
             _buildDataRow(
-              'إجمالي قيمة الطلبات:',
-              '${summary.totalOrdersValue.toStringAsFixed(2)} جنيه',
-              Icons.shopping_cart,
-            ),
-            _buildDataRow(
               'إجمالي رسوم التوصيل:',
               '${summary.totalDeliveryFees.toStringAsFixed(2)} جنيه',
               Icons.delivery_dining,

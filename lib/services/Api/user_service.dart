@@ -206,6 +206,36 @@ class UserService extends ApiService {
     }
   }
 
+  // تبديل حالة التوفر للمستخدم الحالي
+  Future<Response> toggleMyAvailability(bool currentAvailability) async {
+    final headers = await _getHeaders();
+    const url = 'http://127.0.0.1:8000/api/v1/dashboard/users/toggle-my-availability';
+
+    // تبديل الحالة: إذا كان متاح يصبح غير متاح والعكس
+    final newAvailability = !currentAvailability;
+
+    final data = {
+      "is_available": newAvailability,
+    };
+
+    print("🔄 PUT Toggle My Availability: $url");
+    print("📤 Headers: $headers");
+    print("📦 Data: $data");
+
+    try {
+      return await dio.put(
+        url,
+        data: data,
+        options: Options(headers: headers),
+      );
+    } on DioException catch (e) {
+      print("❌ DioError [Toggle My Availability]: ${e.message}");
+      print("❌ Status Code: ${e.response?.statusCode}");
+      print("❌ Response Data: ${e.response?.data}");
+      rethrow;
+    }
+  }
+
   // تسجيل الخروج
   Future<Response> logout() async {
     final headers = await _getHeaders();

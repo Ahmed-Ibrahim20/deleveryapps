@@ -32,11 +32,18 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
   final List<Map<String, String>> currentItems = [];
   final TextEditingController itemNameController = TextEditingController();
   final TextEditingController itemPriceController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _extractPhoneFromEmail();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _extractPhoneFromEmail() async {
@@ -124,6 +131,78 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
     }
   }
 
+  // دالة لعرض الإشعار في الأعلى
+  void _showTopNotification(String message, Color backgroundColor) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    // تحديد الأيقونة حسب اللون
+    IconData icon;
+    if (backgroundColor == Colors.green) {
+      icon = Icons.check_circle;
+    } else if (backgroundColor == Colors.red) {
+      icon = Icons.error;
+    } else {
+      icon = Icons.info;
+    }
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 16, // تحت الـ status bar بمسافة مناسبة
+        left: 16,
+        right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textDirection: TextDirection.rtl,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // إضافة الإشعار للـ overlay
+    overlay.insert(overlayEntry);
+
+    // إزالة الإشعار بعد 3 ثواني
+    Future.delayed(const Duration(seconds: 3), () {
+      if (overlayEntry.mounted) {
+        overlayEntry.remove();
+      }
+    });
+  }
+
   void addMoreOrders() {
     // جلب القيم من التيكست فيلد
     final client = controllers['client']!.text.trim();
@@ -131,20 +210,12 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
     final clientPhone = controllers['clientPhone']!.text.trim();
     final deliveryCostText = controllers['deliveryCost']!.text.trim();
 
-    // التشيك على الحقول الأربعة بس
+    // التشيك على الحقول الأربعة بس - بدون رسالة خطأ
     if (client.isEmpty ||
         clientAddress.isEmpty ||
         clientPhone.isEmpty ||
         deliveryCostText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'يرجى إدخال اسم العميل، العنوان، الهاتف، وتكلفة التوصيل',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+      return; // مجرد عدم إضافة الطلب بدون رسالة
     }
 
     // parse تكلفة التوصيل
@@ -182,14 +253,16 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
       '📦 Added order ${order['orderId']} to batch (Total: ${orders.length} orders)',
     );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '✅ تم إضافة الطلب بنجاح! (${orders.length} طلب جاهز للإرسال)',
-        ),
-        backgroundColor: Colors.green,
-      ),
-    );
+    // التمرير تلقائياً للأسفل لعرض الطلبات المضافة
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
   }
 
   double _calculateTotalItemsPrice() {
@@ -201,13 +274,7 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
 
   Future<void> submitAllOrders() async {
     if (orders.isEmpty || storeData == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('لا توجد طلبات أو بيانات المتجر غير صالحة'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+      return; // عدم إرسال بدون رسالة خطأ
     }
 
     try {
@@ -239,7 +306,7 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
         final response = await orderService.createOrder(orderData);
 
         if (response.statusCode == 201 || response.statusCode == 200) {
-          print('✅ تم إرسال الطلب ${i + 1} بنجاح');
+          print('✅ تم إرسال الطلب  بنجاح');
         } else {
           throw Exception(
             'فشل في إرسال الطلب ${i + 1}: ${response.statusCode}',
@@ -255,21 +322,15 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
         currentItems.clear();
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '✅ تم إرسال جميع الطلبات بنجاح! (${orders.length} طلب)',
-          ),
-          backgroundColor: Colors.green,
-        ),
+      _showTopNotification(
+        '✅ تم إرسال جميع الطلبات بنجاح! (${orders.length+1} طلب)',
+        Colors.green,
       );
     } catch (e) {
       print('❌ خطأ في إرسال الطلبات: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ فشل الإرسال: $e'),
-          backgroundColor: Colors.red,
-        ),
+      _showTopNotification(
+        '❌ فشل الإرسال: $e',
+        Colors.red,
       );
     }
   }
@@ -359,6 +420,7 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
             child: Form(
               key: _formKey,
               child: ListView(
+                controller: _scrollController,
                 children: [
                   // Store Info Section
                   Card(
