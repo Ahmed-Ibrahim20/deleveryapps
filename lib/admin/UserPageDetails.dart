@@ -21,6 +21,7 @@ class _UserPageDetailsState extends State<UserPageDetails>
 
   // User data variables
   String userName = '';
+  String storeName = '';
   String userPhone = '';
   String userEmail = '';
   String userAddress = '';
@@ -59,6 +60,7 @@ class _UserPageDetailsState extends State<UserPageDetails>
   void _loadUserData() {
     setState(() {
       userName = widget.user['name'] ?? 'غير محدد';
+      storeName = widget.user['store_name'] ?? 'غير محدد';
       userPhone = widget.user['phone'] ?? 'غير محدد';
       userEmail = widget.user['email'] ?? 'غير محدد';
       userAddress = widget.user['address'] ?? 'غير محدد';
@@ -66,7 +68,13 @@ class _UserPageDetailsState extends State<UserPageDetails>
       isActive = widget.user['is_active'] ?? true;
       commissionPercentage = _parseDouble(widget.user['commission_percentage']);
       userNotes = widget.user['notes'] ?? 'لا توجد ملاحظات';
-      userCategory = widget.user['category'] ?? 'غير محدد';
+      userCategory = widget.user['catogrey'] ?? widget.user['catogrey'] ?? 'غير محدد';
+      
+      // Debug logging للفئة
+      print('🔍 DEBUG: User category data:');
+      print('🔍 DEBUG: widget.user[\'catogrey\'] = ${widget.user['catogrey']}');
+      print('🔍 DEBUG: widget.user[\'category\'] = ${widget.user['category']}');
+      print('🔍 DEBUG: Final userCategory = $userCategory');
       createdAt = widget.user['created_at'] ?? 'غير محدد';
       updatedAt = widget.user['updated_at'] ?? 'غير محدد';
 
@@ -200,7 +208,7 @@ class _UserPageDetailsState extends State<UserPageDetails>
       case 1:
         return ' السائق: $userName';
       case 2:
-        return ' متجر: $userName';
+        return ' متجر: $storeName';
       default:
         return ' المستخدم: $userName';
     }
@@ -444,22 +452,55 @@ class _UserPageDetailsState extends State<UserPageDetails>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // User name
-              Row(
-                children: [
-                  const Icon(Icons.person, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  Text(
-                    "الاسم: $userName",
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blueAccent,
+              // Store name (for shops) or User name (for drivers)
+              if (_isShop()) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.store, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    Text(
+                      "اسم المحل: $storeName",
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blueAccent,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    const Icon(Icons.person, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    Text(
+                      "صاحب المحل: $userName",
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blueAccent,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ] else ...[
+                Row(
+                  children: [
+                    const Icon(Icons.person, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    Text(
+                      "الاسم: $userName",
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blueAccent,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
 
               // Phone number
               Row(

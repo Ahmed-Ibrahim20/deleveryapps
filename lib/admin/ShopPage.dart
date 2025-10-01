@@ -73,10 +73,11 @@ class _ShopPageState extends State<ShopPage> {
         _filteredShops = _shops;
       } else {
         _filteredShops = _shops.where((shop) {
-          final name = (shop['name'] ?? '').toString().toLowerCase();
+          final storeName = (shop['store_name'] ?? '').toString().toLowerCase();
+          final ownerName = (shop['name'] ?? '').toString().toLowerCase();
           final phone = (shop['phone'] ?? '').toString().toLowerCase();
           final searchLower = query.toLowerCase();
-          return name.contains(searchLower) || phone.contains(searchLower);
+          return storeName.contains(searchLower) || ownerName.contains(searchLower) || phone.contains(searchLower);
         }).toList();
       }
     });
@@ -102,7 +103,7 @@ class _ShopPageState extends State<ShopPage> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: TextField(
                 decoration: const InputDecoration(
-                  hintText: 'ابحث باسم المحل...',
+                  hintText: 'ابحث باسم المحل أو صاحب المحل...',
                   prefixIcon: Icon(Icons.search, color: Colors.blue),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -141,7 +142,7 @@ class _ShopPageState extends State<ShopPage> {
                                   color: Colors.blue,
                                 ),
                                 title: Text(
-                                  shop['name'] ?? 'غير محدد',
+                                  shop['store_name'] ?? 'غير محدد',
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,

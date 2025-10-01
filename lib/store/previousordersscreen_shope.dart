@@ -306,7 +306,7 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
                               Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade600),
                               const SizedBox(width: 8),
                               Text(
-                                fromDate != null ? _formatDate(fromDate!.toIso8601String()) : 'من تاريخ',
+                                fromDate != null ? _formatDateInArabic(fromDate!) : 'من تاريخ',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: fromDate != null ? Colors.black87 : Colors.grey.shade600,
@@ -333,7 +333,7 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
                               Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade600),
                               const SizedBox(width: 8),
                               Text(
-                                toDate != null ? _formatDate(toDate!.toIso8601String()) : 'إلى تاريخ',
+                                toDate != null ? _formatDateInArabic(toDate!) : 'إلى تاريخ',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: toDate != null ? Colors.black87 : Colors.grey.shade600,
@@ -495,14 +495,23 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
     }
   }
 
-  // Format date to DD-MM-YYYY
+  // Format date to Arabic format
   String _formatDate(String dateString) {
     try {
       final DateTime date = DateTime.parse(dateString);
-      return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
+      return _formatDateInArabic(date);
     } catch (e) {
       return dateString;
     }
+  }
+
+  // دالة لتحويل التاريخ للعربية
+  String _formatDateInArabic(DateTime date) {
+    final months = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   // Date picker function

@@ -29,6 +29,15 @@ class _ReportDeleveryState extends State<ReportDelevery> {
   final DateFormat _dateFormatter = DateFormat('yyyy-MM-dd');
   final DateFormat _displayFormatter = DateFormat('yyyy/MM/dd');
 
+  // دالة لتحويل التاريخ للعربية
+  String _formatDateInArabic(DateTime date) {
+    final months = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -295,7 +304,7 @@ class _ReportDeleveryState extends State<ReportDelevery> {
           onPressed: _selectStartDate,
           icon: const Icon(Icons.calendar_today, color: Colors.white),
           label: Text(
-            'من: ${_startDate != null ? _displayFormatter.format(_startDate!) : 'اختر التاريخ'}',
+            'من: ${_startDate != null ? _formatDateInArabic(_startDate!) : 'اختر التاريخ'}',
             style: const TextStyle(color: Colors.white),
           ),
           style: ElevatedButton.styleFrom(
@@ -309,7 +318,7 @@ class _ReportDeleveryState extends State<ReportDelevery> {
           onPressed: _selectEndDate,
           icon: const Icon(Icons.calendar_today, color: Colors.white),
           label: Text(
-            'إلى: ${_endDate != null ? _displayFormatter.format(_endDate!) : 'اختر التاريخ'}',
+            'إلى: ${_endDate != null ? _formatDateInArabic(_endDate!) : 'اختر التاريخ'}',
             style: const TextStyle(color: Colors.white),
           ),
           style: ElevatedButton.styleFrom(

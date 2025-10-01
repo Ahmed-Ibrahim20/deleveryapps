@@ -54,6 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setInt('role', data['role']);
       await prefs.setInt('user_id', data['user']['id'] ?? 0);
       await prefs.setString('name', data['user']['name'] ?? '');
+      await prefs.setString('store_name', data['user']['store_name'] ?? data['user']['name'] ?? '');
       await prefs.setString('phone', data['user']['phone'] ?? '');
       await prefs.setString('email', data['user']['email'] ?? '');
       await prefs.setString('image', data['user']['image'] ?? '');

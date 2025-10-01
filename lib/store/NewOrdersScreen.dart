@@ -66,6 +66,7 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
       final prefs = await SharedPreferences.getInstance();
 
       final userName = prefs.getString('name') ?? 'غير محدد';
+      final storeName = prefs.getString('store_name') ?? prefs.getString('name') ?? 'غير محدد';
       final userAddress = prefs.getString('address') ?? 'غير محدد';
       final userPhone =
           prefs.getString('phone') ?? extractedPhone ?? 'غير محدد';
@@ -83,6 +84,7 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
         storeData = {
           'id': userId,
           'name': userName,
+          'store_name': storeName,
           'address': userAddress,
           'phone': userPhone,
           'email': userEmail,
@@ -97,6 +99,7 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
 
       print('✅ تم تحميل بيانات المستخدم من SharedPreferences:');
       print('📱 الاسم: $userName');
+      print('🏪 اسم المحل: $storeName');
       print('📍 العنوان: $userAddress');
       print('☎️ الهاتف: $userPhone');
       print(
@@ -423,80 +426,136 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
                 controller: _scrollController,
                 children: [
                   // Store Info Section
-                  Card(
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFFF8F9FA),
+                          Colors.white,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          spreadRadius: 2,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Header with icon and title
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  const Color(0xFF4A90E2),
+                                  const Color(0xFF357ABD),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.store,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'معلومات المحل',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          
+                          // Store information in a grid layout
                           Row(
                             children: [
-                              Icon(
-                                storeData!['role'] == 0
-                                    ? Icons.admin_panel_settings
-                                    : storeData!['role'] == 1
-                                    ? Icons.store
-                                    : Icons.delivery_dining,
-                                color: Colors.blue,
-                                size: 24,
+                              Expanded(
+                                child: _buildInfoCard(
+                                  'اسم المحل',
+                                  storeData?['store_name'] ?? 'غير محدد',
+                                  Icons.store_outlined,
+                                  const Color(0xFF28A745),
+                                ),
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                storeData!['role'] == 0
-                                    ? 'معلومات الأدمن'
-                                    : storeData!['role'] == 1
-                                    ? 'معلومات المحل'
-                                    : 'معلومات الدليفري',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildInfoCard(
+                                  'رقم الهاتف',
+                                  extractedPhone ?? 'غير محدد',
+                                  Icons.phone_outlined,
+                                  const Color(0xFF17A2B8),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: TextEditingController(
-                              text: storeData?['name'] ?? 'غير محدد',
+                          const SizedBox(height: 12),
+                          
+                          if (storeData!['role'] == 2) ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildInfoCard(
+                                    'العنوان',
+                                    storeData?['address'] ?? 'غير محدد',
+                                    Icons.location_on_outlined,
+                                    const Color(0xFFFF6B35),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _buildInfoCard(
+                                    'نسبة التطبيق',
+                                    "${(storeData?['appCommission'] ?? 0).toStringAsFixed(0)}%",
+                                    Icons.percent_outlined,
+                                    const Color(0xFF6F42C1),
+                                  ),
+                                ),
+                              ],
                             ),
-                            readOnly: true,
-                            decoration: customInputDecoration(
-                              storeData!['role'] == 0
-                                  ? 'اسم الأدمن'
-                                  : storeData!['role'] == 1
-                                  ? 'اسم المحل'
-                                  : 'اسم الدليفري',
+                          ] else ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildInfoCard(
+                                    'نسبة التطبيق',
+                                    "${(storeData?['appCommission'] ?? 0).toStringAsFixed(0)}%",
+                                    Icons.percent_outlined,
+                                    const Color(0xFF6F42C1),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(child: Container()), // Empty space for alignment
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                          if (storeData!['role'] == 2) // Show address only for shops
-                            TextFormField(
-                              controller: TextEditingController(
-                                text: storeData?['address'] ?? 'غير محدد',
-                              ),
-                              readOnly: true,
-                              decoration: customInputDecoration('العنوان'),
-                            ),
-                          if (storeData!['role'] == 2) const SizedBox(height: 10),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: TextEditingController(
-                              text: extractedPhone ?? 'غير محدد',
-                            ),
-                            readOnly: true,
-                            decoration: customInputDecoration('رقم الهاتف'),
-                          ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: TextEditingController(
-                              text:
-                                  "${(storeData?['appCommission'] ?? 0).toStringAsFixed(0)}%",
-                            ),
-                            readOnly: true,
-                            decoration: customInputDecoration('نسبة التطبيق'),
-                          ),
-                          const SizedBox(height: 10),
+                          ],
                         ],
                       ),
                     ),
@@ -504,49 +563,113 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
                   const SizedBox(height: 16),
 
                   // Order Details Section
-                  Card(
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white,
+                          const Color(0xFFFAFBFC),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          spreadRadius: 2,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'تفاصيل الطلب',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue,
+                          // Header with icon and title
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  const Color(0xFF28A745),
+                                  const Color(0xFF20A039),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.receipt_long,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'تفاصيل الطلب',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: controllers['client'],
-                            decoration: customInputDecoration('اسم العميل'),
-                            validator: (v) =>
-                                v == null || v.isEmpty ? 'مطلوب' : null,
+                          const SizedBox(height: 20),
+                          
+                          // Form fields in a clean layout
+                          _buildFormField(
+                            controller: controllers['client']!,
+                            label: 'اسم العميل',
+                            icon: Icons.person_outline,
+                            color: const Color(0xFF6C5CE7),
                           ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: controllers['clientAddress'],
-                            decoration: customInputDecoration('عنوان العميل'),
-                            validator: (v) =>
-                                v == null || v.isEmpty ? 'مطلوب' : null,
+                          const SizedBox(height: 16),
+                          
+                          _buildFormField(
+                            controller: controllers['clientAddress']!,
+                            label: 'عنوان العميل',
+                            icon: Icons.location_on_outlined,
+                            color: const Color(0xFFFF6B35),
                           ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: controllers['clientPhone'],
-                            keyboardType: TextInputType.phone,
-                            decoration: customInputDecoration('هاتف العميل'),
-                            validator: (v) =>
-                                v == null || v.isEmpty ? 'مطلوب' : null,
-                          ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: controllers['deliveryCost'],
-                            keyboardType: TextInputType.number,
-                            decoration: customInputDecoration('تكلفة التوصيل'),
-                            validator: (v) =>
-                                v == null || v.isEmpty ? 'مطلوب' : null,
+                          const SizedBox(height: 16),
+                          
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: controllers['clientPhone']!,
+                                  label: 'هاتف العميل',
+                                  icon: Icons.phone_outlined,
+                                  color: const Color(0xFF17A2B8),
+                                  keyboardType: TextInputType.phone,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: controllers['deliveryCost']!,
+                                  label: 'تكلفة التوصيل',
+                                  icon: Icons.attach_money_outlined,
+                                  color: const Color(0xFFE67E22),
+                                  keyboardType: TextInputType.number,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -636,18 +759,56 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
                   const SizedBox(height: 16),
 
                   // Add Order Button
-                  ElevatedButton.icon(
-                    onPressed: addMoreOrders,
-                    icon: const Icon(Icons.add),
-                    label: const Text('إضافة طلب'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
+                  Container(
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFFFF6B35),
+                          const Color(0xFFE55A2B),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF6B35).withOpacity(0.3),
+                          spreadRadius: 2,
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: addMoreOrders,
+                      icon: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.add_circle_outline,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      label: const Text(
+                        'إضافة طلب جديد',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     ),
                   ),
@@ -732,25 +893,56 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
 
                   // Submit All Orders Button
                   if (orders.isNotEmpty)
-                    ElevatedButton.icon(
-                      onPressed: submitAllOrders,
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      label: Text(
-                        'إرسال جميع الطلبات (${orders.length})',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                    Container(
+                      width: double.infinity,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF28A745),
+                            const Color(0xFF20A039),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF28A745).withOpacity(0.3),
+                            spreadRadius: 2,
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
+                      child: ElevatedButton.icon(
+                        onPressed: submitAllOrders,
+                        icon: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(
+                            Icons.send_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                        label: Text(
+                          'إرسال جميع الطلبات (${orders.length})',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                       ),
                     ),
@@ -759,6 +951,149 @@ class _NewOrdersScreenState extends State<NewOrdersScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withOpacity(0.2),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade800,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required Color color,
+    TextInputType? keyboardType,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withOpacity(0.2),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.05),
+            spreadRadius: 1,
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: TextStyle(
+          fontSize: 14,
+          color: Colors.grey.shade800,
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(
+            color: color,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 18,
+            ),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: color,
+              width: 2,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.grey.shade50,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+        ),
+        validator: (v) => v == null || v.isEmpty ? 'مطلوب' : null,
       ),
     );
   }

@@ -56,7 +56,17 @@ class NotificationModel {
 
   /// تحديد نوع الإشعار من العنوان
   static String _determineTypeFromTitle(String title) {
-    if (title.contains('تسجيل مستخدم') || title.contains('مستخدم جديد')) {
+    // طباعة الـ title للتشخيص
+    print('🔍 DEBUG: _determineTypeFromTitle called with title: "$title"');
+    
+    if (title.contains('تسجيل مستخدم') || 
+        title.contains('مستخدم جديد') || 
+        title.contains('طلب فتح حساب') ||
+        title.contains('فتح حساب') ||
+        title.contains('حساب جديد') ||
+        title.contains('تسجيل') ||
+        title.toLowerCase().contains('register')) {
+      print('✅ DEBUG: Matched user_registered for title: "$title"');
       return 'user_registered';
     } else if (title.contains('طلب جديد')) {
       return 'order_created';
@@ -69,6 +79,7 @@ class NotificationModel {
     } else if (title.contains('شكوى')) {
       return 'complaint';
     } else {
+      print('⚠️ DEBUG: Unknown notification type for title: "$title" - returning general');
       return 'general';
     }
   }

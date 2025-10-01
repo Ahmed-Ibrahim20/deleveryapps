@@ -380,6 +380,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   /// معالجة النقر على الإشعار
   void _handleNotificationTap(NotificationModel notification, NotificationProvider provider) {
+    // طباعة تفاصيل الإشعار للتشخيص
+    print('🔍 DEBUG: Notification tapped!');
+    print('🔍 DEBUG: notification.type = "${notification.type}"');
+    print('🔍 DEBUG: notification.title = "${notification.title}"');
+    print('🔍 DEBUG: notification.message = "${notification.message}"');
+    print('🔍 DEBUG: notification.id = ${notification.id}');
+    print('🔍 DEBUG: notification.data = ${notification.data}');
+    print('🔍 DEBUG: notification.notifiableType = "${notification.notifiableType}"');
+    print('🔍 DEBUG: notification.notifiableId = ${notification.notifiableId}');
+    
     // تحديد الإشعار كمقروء
     if (!notification.isRead) {
       provider.markAsRead(notification.id);
@@ -389,28 +399,149 @@ class _NotificationsPageState extends State<NotificationsPage> {
     switch (notification.type) {
       case 'user_registered':
         // الانتقال لصفحة طلبات فتح الحساب
+        print('✅ SUCCESS: Matched user_registered case!');
+        print('🔄 Navigating to PendingUsersPage for user_registered notification');
+        
+        // عرض رسالة تأكيد قصيرة
+        _overlayService.showInfoNotification(
+          'انتقال',
+          'جاري فتح صفحة طلبات فتح الحساب...',
+        );
+        
+        // التنقل لصفحة PendingUsersPage
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => const PendingUsersPage(),
           ),
         );
-        break;
+        
+        print('✅ Navigation completed to PendingUsersPage');
+        return; // إنهاء الدالة هنا لضمان عدم تنفيذ أي كود آخر
       case 'complaint':
       case 'support_message':
         // الانتقال لصفحة الدعم الفني والشكاوي
+        print('🔄 Navigating to SupportPage for complaint/support notification');
+        
+        // عرض رسالة تأكيد قصيرة
+        _overlayService.showInfoNotification(
+          'انتقال',
+          'جاري فتح صفحة الدعم الفني والشكاوي...',
+        );
+        
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => const SupportPage(),
           ),
         );
-        break;
-      default:
-        // عرض تفاصيل الإشعار
+        return; // إنهاء الدالة هنا
+      case 'order_created':
+      case 'order_accepted':
+      case 'order_delivered':
+      case 'order_cancelled':
+        // للطلبات، يمكن إضافة التنقل لصفحة الطلبات لاحقاً
+        print('📦 Order notification tapped: ${notification.type}');
         _showNotificationDetails(notification);
         break;
+      case 'general':
+        // فحص إضافي للإشعارات العامة - ممكن تكون طلبات فتح حساب
+        print('🔍 General notification - checking title and message for user registration');
+        if (_isUserRegistrationNotification(notification)) {
+          print('✅ Found user registration in general notification - navigating to PendingUsersPage');
+          _overlayService.showInfoNotification(
+            'انتقال',
+            'جاري فتح صفحة طلبات فتح الحساب...',
+          );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PendingUsersPage(),
+            ),
+          );
+          return;
+        } else {
+          _showNotificationDetails(notification);
+        }
+        break;
+      default:
+        // فحص إضافي لأي نوع إشعار - ممكن يكون طلب فتح حساب
+        print('ℹ️ Unknown notification type: ${notification.type} - checking if user registration');
+        if (_isUserRegistrationNotification(notification)) {
+          print('✅ Found user registration in unknown notification type - navigating to PendingUsersPage');
+          _overlayService.showInfoNotification(
+            'انتقال',
+            'جاري فتح صفحة طلبات فتح الحساب...',
+          );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PendingUsersPage(),
+            ),
+          );
+          return;
+        } else {
+          // عرض تفاصيل الإشعار للأنواع الأخرى
+          print('ℹ️ Showing details for notification type: ${notification.type}');
+          _showNotificationDetails(notification);
+        }
+        break;
     }
+  }
+
+  /// فحص إضافي للإشعارات العامة لمعرفة إذا كانت طلبات فتح حساب
+  bool _isUserRegistrationNotification(NotificationModel notification) {
+    final title = notification.title.toLowerCase();
+    final message = notification.message.toLowerCase();
+    
+    // البحث في العنوان والرسالة عن كلمات مفتاحية لطلبات فتح الحساب
+    final keywords = [
+      'تسجيل',
+      'حساب',
+      'فتح',
+      'مستخدم جديد',
+      'طلب فتح',
+      'register',
+      'account',
+      'new user',
+      'signup',
+      'user',
+      'pending'
+    ];
+    
+    for (String keyword in keywords) {
+      if (title.contains(keyword) || message.contains(keyword)) {
+        print('🔍 Found keyword "$keyword" in notification');
+        return true;
+      }
+    }
+    
+    // فحص البيانات إذا كانت موجودة
+    if (notification.data != null) {
+      final dataString = notification.data.toString().toLowerCase();
+      
+      // فحص الكلمات المفتاحية في البيانات
+      for (String keyword in keywords) {
+        if (dataString.contains(keyword)) {
+          print('🔍 Found keyword "$keyword" in notification data');
+          return true;
+        }
+      }
+      
+      // فحص إضافي: إذا كانت البيانات تحتوي على حقول مستخدم
+      final data = notification.data!;
+      if (data.containsKey('name') || 
+          data.containsKey('phone') || 
+          data.containsKey('email') ||
+          data.containsKey('role') ||
+          data.containsKey('is_approved') ||
+          data.containsKey('store_name')) {
+        print('🔍 Found user data fields in notification - likely user registration');
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   /// فحص ما إذا كان الإشعار يحتوي على إجراءات
@@ -446,6 +577,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   /// عرض تفاصيل الإشعار
   void _showNotificationDetails(NotificationModel notification) {
+    print('🚨 DEBUG: _showNotificationDetails called for type: ${notification.type}');
     showDialog(
       context: context,
       builder: (context) => Directionality(
