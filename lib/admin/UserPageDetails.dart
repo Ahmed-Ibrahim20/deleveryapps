@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +19,11 @@ class _UserPageDetailsState extends State<UserPageDetails>
   late TabController _tabController;
   final UserService _userService = UserService();
   final TextEditingController _commissionController = TextEditingController();
+
+  // متغيرات فلترة التواريخ
+  DateTime? _startDate;
+  DateTime? _endDate;
+  final DateFormat _dateFormatter = DateFormat('yyyy-MM-dd');
 
   // User data variables
   String userName = '';
@@ -85,7 +91,16 @@ class _UserPageDetailsState extends State<UserPageDetails>
     _loadStatistics();
   }
 
-  // دالة جلب الإحصائيات من الـ API
+  // دالة لتحويل التاريخ للعربية
+  String _formatDateInArabic(DateTime date) {
+    final months = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  // دالة جلب الإحصائيات من الـ API مع دعم فلترة التواريخ
   Future<void> _loadStatistics() async {
     setState(() {
       isLoadingStats = true;
@@ -97,7 +112,9 @@ class _UserPageDetailsState extends State<UserPageDetails>
       
       print('معرف المستخدم: $userId');
       print('دور المستخدم: $userRole');
+      print('فترة التاريخ: من ${_startDate != null ? _dateFormatter.format(_startDate!) : 'غير محدد'} إلى ${_endDate != null ? _dateFormatter.format(_endDate!) : 'غير محدد'}');
       
+      // بناء الـ endpoint حسب نوع المستخدم
       String endpoint;
       if (userRole == 1) {
         // سائق
@@ -113,15 +130,28 @@ class _UserPageDetailsState extends State<UserPageDetails>
         });
         return;
       }
+
+      // إضافة معاملات التاريخ إذا كانت محددة
+      List<String> queryParams = [];
+      if (_startDate != null) {
+        queryParams.add('start_date=${_dateFormatter.format(_startDate!)}');
+      }
+      if (_endDate != null) {
+        queryParams.add('end_date=${_dateFormatter.format(_endDate!)}');
+      }
       
-      print('رابط الـ API: $endpoint');
+      if (queryParams.isNotEmpty) {
+        endpoint += '?${queryParams.join('&')}';
+      }
+      
+      print('🔗 رابط الـ API: $endpoint');
 
       // جلب التوكن من SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
       
       if (token == null) {
-        print('لا يوجد توكن');
+        print('❌ لا يوجد توكن');
         setState(() {
           isLoadingStats = false;
         });
@@ -137,8 +167,8 @@ class _UserPageDetailsState extends State<UserPageDetails>
         },
       );
       
-      print('رد الـ API: ${response.statusCode}');
-      print('محتوى الرد: ${response.body}');
+      print('📊 رد الـ API: ${response.statusCode}');
+      print('📄 محتوى الرد: ${response.body}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -161,21 +191,78 @@ class _UserPageDetailsState extends State<UserPageDetails>
               totalDelivery = _parseDouble(reportData['total_delivery_fees']);
             }
           });
-          print('تم تحديث البيانات بنجاح');
+          print('✅ تم تحديث البيانات بنجاح');
         } else {
-          print('فشل في جلب البيانات: ${data['message'] ?? 'خطأ غير محدد'}');
+          print('❌ فشل في جلب البيانات: ${data['message'] ?? 'خطأ غير محدد'}');
         }
       } else {
-        print('خطأ في الـ API: ${response.statusCode}');
-        print('رسالة الخطأ: ${response.body}');
+        print('❌ خطأ في الـ API: ${response.statusCode}');
+        print('📄 رسالة الخطأ: ${response.body}');
       }
     } catch (e) {
-      print('خطأ في تحميل الإحصائيات: $e');
+      print('❌ خطأ في تحميل الإحصائيات: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطأ في تحميل الإحصائيات: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       setState(() {
         isLoadingStats = false;
       });
     }
+  }
+
+  /// اختيار تاريخ البداية
+  Future<void> _selectStartDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate ?? DateTime.now().subtract(const Duration(days: 30)),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+
+    if (picked != null && picked != _startDate) {
+      setState(() {
+        _startDate = picked;
+        // التأكد من أن تاريخ البداية قبل تاريخ النهاية
+        if (_endDate != null && _startDate!.isAfter(_endDate!)) {
+          _endDate = _startDate;
+        }
+      });
+      _loadStatistics();
+    }
+  }
+
+  /// اختيار تاريخ النهاية
+  Future<void> _selectEndDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? DateTime.now(),
+      firstDate: _startDate ?? DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+
+    if (picked != null && picked != _endDate) {
+      setState(() {
+        _endDate = picked;
+        // التأكد من أن تاريخ النهاية بعد تاريخ البداية
+        if (_startDate != null && _endDate!.isBefore(_startDate!)) {
+          _startDate = _endDate;
+        }
+      });
+      _loadStatistics();
+    }
+  }
+
+  /// إعادة تعيين التواريخ لعرض كل البيانات
+  void _resetDates() {
+    setState(() {
+      _startDate = null;
+      _endDate = null;
+    });
+    _loadStatistics();
   }
 
   // Helper methods for safe type conversion
@@ -658,6 +745,115 @@ class _UserPageDetailsState extends State<UserPageDetails>
                 ],
               ),
               const SizedBox(height: 20),
+
+              // فلترة التواريخ
+              if (widget.user['role'] == 1 || widget.user['role'] == 2) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.date_range, color: Colors.blue, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'فلترة حسب التاريخ',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          // زر تاريخ البداية
+                          Expanded(
+                            child: InkWell(
+                              onTap: _selectStartDate,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.blue.shade300),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.white,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.calendar_today, size: 16, color: Colors.blue),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'من: ${_startDate != null ? _formatDateInArabic(_startDate!) : 'اختر التاريخ'}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: _startDate != null ? Colors.black87 : Colors.grey,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // زر تاريخ النهاية
+                          Expanded(
+                            child: InkWell(
+                              onTap: _selectEndDate,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.blue.shade300),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.white,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.calendar_today, size: 16, color: Colors.blue),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'إلى: ${_endDate != null ? _formatDateInArabic(_endDate!) : 'اختر التاريخ'}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: _endDate != null ? Colors.black87 : Colors.grey,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // زر مسح التواريخ
+                      if (_startDate != null || _endDate != null)
+                        Center(
+                          child: TextButton.icon(
+                            onPressed: _resetDates,
+                            icon: Icon(Icons.clear, size: 16, color: Colors.red),
+                            label: Text(
+                              'مسح التواريخ (عرض كل البيانات)',
+                              style: TextStyle(fontSize: 12, color: Colors.red),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
 
               // Statistics Grid
               if (isLoadingStats)
