@@ -29,35 +29,46 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
     });
 
     try {
-      print('🔄 Loading ongoing orders (status = 1)...');
-      final response = await _orderService.getOngoingOrders();
-      
+      print('🔄 Loading accepted orders (status = 1)...');
+      final response = await _orderService.getAllOrders();
+
       if (response.statusCode == 200 && response.data != null) {
         final responseData = response.data['data'];
         print('📦 API Response: ${response.data}');
         print('📦 Response data type: ${responseData.runtimeType}');
-        
+
         if (responseData != null && responseData['data'] is List) {
-          final ongoingOrders = List<Map<String, dynamic>>.from(
+          final allOrders = List<Map<String, dynamic>>.from(
             responseData['data'],
           );
-          
-          print('📦 Total ongoing orders found: ${ongoingOrders.length}');
-          
-          // طباعة تفاصيل كل طلب للتشخيص
-          for (var order in ongoingOrders) {
-            print('🔍 Order ${order['id']} - Status: ${order['status']} - Customer: ${order['customer_name']}');
+
+          // فلترة الطلبات المقبولة فقط (status = 1)
+          final acceptedOrders = allOrders.where((order) {
+            final orderStatus = order['status'];
+            return orderStatus == 1; // فقط الطلبات المقبولة
+          }).toList();
+
+          print('📦 Total orders found: ${allOrders.length}');
+          print('📦 Accepted orders (status = 1): ${acceptedOrders.length}');
+
+          // طباعة تفاصيل كل طلب مقبول للتشخيص
+          for (var order in acceptedOrders) {
+            print(
+              '🔍 Order ${order['id']} - Status: ${order['status']} - Customer: ${order['customer_name']}',
+            );
             print('🏪 Store info from added_by: ${order['added_by']}');
           }
-          
+
           setState(() {
-            orders = ongoingOrders;
+            orders = acceptedOrders;
             isLoading = false;
           });
-          
-          print('✅ Loaded ${ongoingOrders.length} ongoing orders successfully');
+
+          print('✅ Loaded ${acceptedOrders.length} accepted orders successfully');
         } else {
-          print('❌ responseData["data"] is not a List: ${responseData?['data'].runtimeType}');
+          print(
+            '❌ responseData["data"] is not a List: ${responseData?['data'].runtimeType}',
+          );
           print('❌ Full responseData: $responseData');
           setState(() {
             orders = [];
@@ -73,9 +84,10 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
     } catch (e) {
       print('❌ Error loading accepted orders: $e');
       print('❌ Error type: ${e.runtimeType}');
-      
+
       String userFriendlyError;
-      if (e.toString().contains('SocketException') || e.toString().contains('Connection')) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection')) {
         userFriendlyError = 'تعذر الاتصال بالخادم. تأكد من اتصال الإنترنت.';
       } else if (e.toString().contains('TimeoutException')) {
         userFriendlyError = 'انتهت مهلة الاتصال. حاول مرة أخرى.';
@@ -84,7 +96,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
       } else {
         userFriendlyError = 'حدث خطأ غير متوقع. حاول مرة أخرى.';
       }
-      
+
       setState(() {
         errorMessage = userFriendlyError;
         isLoading = false;
@@ -94,19 +106,19 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
 
   List<Map<String, dynamic>> get filteredOrders {
     if (searchQuery.isEmpty) return orders;
-    
+
     return orders.where((order) {
       final orderId = order['id']?.toString() ?? '';
       final customerName = order['customer_name']?.toString() ?? '';
       final storeName = order['store_name']?.toString() ?? '';
       final addedByName = order['added_by']?['name']?.toString() ?? '';
       final addedByPhone = order['added_by']?['phone']?.toString() ?? '';
-      
+
       return orderId.contains(searchQuery) ||
-             customerName.toLowerCase().contains(searchQuery.toLowerCase()) ||
-             storeName.toLowerCase().contains(searchQuery.toLowerCase()) ||
-             addedByName.toLowerCase().contains(searchQuery.toLowerCase()) ||
-             addedByPhone.contains(searchQuery);
+          customerName.toLowerCase().contains(searchQuery.toLowerCase()) ||
+          storeName.toLowerCase().contains(searchQuery.toLowerCase()) ||
+          addedByName.toLowerCase().contains(searchQuery.toLowerCase()) ||
+          addedByPhone.contains(searchQuery);
     }).toList();
   }
 
@@ -119,7 +131,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
         appBar: AppBar(
           centerTitle: true,
           title: const Text(
-            'الطلبات الجارية',
+            'الطلبات المقبولة',
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -182,7 +194,10 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [Color(0xFF5DADE2), Color(0xFF3498DB)],
@@ -201,11 +216,14 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.assignment_turned_in, 
-                           color: Colors.white, size: 20),
+                      const Icon(
+                        Icons.assignment_turned_in,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Text(
-                        'إجمالي الطلبات الجارية: ${filteredOrders.length}',
+                        'إجمالي الطلبات المقبولة: ${filteredOrders.length}',
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -220,9 +238,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
             const SizedBox(height: 12),
 
             // Content
-            Expanded(
-              child: _buildContent(),
-            ),
+            Expanded(child: _buildContent()),
           ],
         ),
       ),
@@ -241,7 +257,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
             ),
             SizedBox(height: 16),
             Text(
-              'جاري تحميل الطلبات الجارية...',
+              'جاري تحميل الطلبات المقبولة...',
               style: TextStyle(
                 fontSize: 16,
                 color: Color(0xFF5D6D7E),
@@ -258,11 +274,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Color(0xFFE74C3C),
-            ),
+            const Icon(Icons.error_outline, size: 64, color: Color(0xFFE74C3C)),
             const SizedBox(height: 16),
             Text(
               errorMessage!,
@@ -279,7 +291,10 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF8E44AD),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -304,9 +319,9 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              searchQuery.isEmpty 
-                ? 'لا توجد طلبات جارية حالياً'
-                : 'لا توجد نتائج للبحث',
+              searchQuery.isEmpty
+                  ? 'لا توجد طلبات مقبولة حالياً'
+                  : 'لا توجد نتائج للبحث',
               style: const TextStyle(
                 fontSize: 18,
                 color: Color(0xFF5D6D7E),
@@ -317,10 +332,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
               const SizedBox(height: 8),
               const Text(
                 'جرب البحث بكلمات أخرى',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF85929E),
-                ),
+                style: TextStyle(fontSize: 14, color: Color(0xFF85929E)),
               ),
             ],
           ],
@@ -345,7 +357,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
   Widget _buildOrderCard(Map<String, dynamic> order) {
     // طباعة تفاصيل الطلب للتشخيص
     print('🔍 Order details: $order');
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -399,7 +411,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Text(
-                    'جاري',
+                    'مقبول',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -421,7 +433,9 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
                 // محاولة الحصول على اسم المتجر من added_by أولاً، ثم من store_name
                 order['added_by']?['name'] ?? order['store_name'] ?? 'غير محدد',
                 // محاولة الحصول على هاتف المتجر من added_by أولاً، ثم من store_phone
-                order['added_by']?['phone'] ?? order['store_phone'] ?? 'غير محدد',
+                order['added_by']?['phone'] ??
+                    order['store_phone'] ??
+                    'غير محدد',
               ),
               // عرض العنوان إذا كان متوفر
               if (order['store_address'] != null)
@@ -499,7 +513,11 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  const Icon(Icons.access_time, size: 16, color: Color(0xFF5D6D7E)),
+                  const Icon(
+                    Icons.access_time,
+                    size: 16,
+                    color: Color(0xFF5D6D7E),
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     'تاريخ الطلب: ${_formatDate(order['created_at'])}',
@@ -526,9 +544,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: color,
-        border: Border(
-          bottom: BorderSide(color: borderColor, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: borderColor, width: 1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -542,7 +558,11 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
                 const Icon(Icons.person, size: 16, color: Color(0xFF8E44AD)),
                 const SizedBox(width: 6),
               ] else if (title == "معلومات السائق") ...[
-                const Icon(Icons.delivery_dining, size: 16, color: Color(0xFF27AE60)),
+                const Icon(
+                  Icons.delivery_dining,
+                  size: 16,
+                  color: Color(0xFF27AE60),
+                ),
                 const SizedBox(width: 6),
               ],
               Text(
@@ -651,7 +671,10 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
                   child: GestureDetector(
                     onTap: () => _makePhoneCall(phone),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [Color(0xFF27AE60), Color(0xFF229954)],
@@ -735,7 +758,7 @@ class _AcceptedOrdersPageState extends State<AcceptedOrdersPage> {
 
   String _formatDate(String? dateString) {
     if (dateString == null) return 'غير محدد';
-    
+
     try {
       final date = DateTime.parse(dateString);
       return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';

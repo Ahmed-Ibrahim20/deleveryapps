@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/Api/order_service.dart';
+import '../delevery/home_delevery.dart';
 
 class order_detailes_shope extends StatefulWidget {
   final String phone;
@@ -16,7 +18,11 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
   String searchQuery = '';
   Map<String, dynamic>? userData;
   List<Map<String, dynamic>> orders = [];
+  List<Map<String, dynamic>> allOrders = <Map<String, dynamic>>[];
   bool isLoading = true;
+
+  DateTime? fromDate;
+  DateTime? toDate;
 
   @override
   void initState() {
@@ -24,11 +30,192 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
     _loadUserDataAndOrders();
   }
 
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    if (phoneNumber.isEmpty || phoneNumber == 'غير محدد') return;
+
+    final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
+
+    if (await canLaunchUrl(launchUri)) {
+      await launchUrl(launchUri);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('لا يمكن الاتصال بالرقم: $phoneNumber')),
+        );
+      }
+    }
+  }
+
+  Future<void> _completeDelivery(dynamic orderId) async {
+    try {
+      // عرض dialog للتأكيد
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('تأكيد إكمال التوصيل'),
+          content: const Text('هل أنت متأكد من إكمال هذا الطلب؟'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('تأكيد'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+
+      // عرض loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                CircularProgressIndicator(strokeWidth: 2),
+                SizedBox(width: 16),
+                Text('جاري إكمال التوصيل...'),
+              ],
+            ),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // محاولة إكمال التوصيل مع retry logic
+      final orderService = OrderService();
+
+      // محاولة أولى
+      try {
+        final response = await orderService
+            .changeOrderStatus(orderId, 3)
+            .timeout(
+              const Duration(seconds: 15),
+              onTimeout: () {
+                throw Exception(
+                  'انتهت مهلة الاتصال. تحقق من الاتصال بالإنترنت.',
+                );
+              },
+            );
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('✅ تم إكمال التوصيل بنجاح!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+
+          // التوجه لصفحة الهوم بعد إكمال التوصيل بنجاح
+          await Future.delayed(const Duration(seconds: 1));
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (context) => DriverHomePage(phone: widget.phone),
+              ),
+              (route) => false,
+            );
+          }
+          return;
+        } else {
+          throw Exception('خطأ من الخادم: ${response.statusCode}');
+        }
+      } catch (e) {
+        debugPrint('❌ المحاولة الأولى فشلت: $e');
+
+        // محاولة ثانية بعد ثانيتين
+        await Future.delayed(const Duration(seconds: 2));
+
+        try {
+          final response = await orderService
+              .changeOrderStatus(orderId, 3)
+              .timeout(const Duration(seconds: 20));
+
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('✅ تم إكمال التوصيل بنجاح!'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+
+            // التوجه لصفحة الهوم بعد إكمال التوصيل بنجاح
+            await Future.delayed(const Duration(seconds: 1));
+            if (mounted) {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) => DriverHomePage(phone: widget.phone),
+                ),
+                (route) => false,
+              );
+            }
+            return;
+          }
+        } catch (retryError) {
+          debugPrint('❌ المحاولة الثانية فشلت: $retryError');
+          rethrow;
+        }
+
+        rethrow;
+      }
+    } catch (e) {
+      debugPrint('❌ خطأ في إكمال التوصيل: $e');
+
+      String errorMessage = 'خطأ في إكمال التوصيل';
+
+      if (e.toString().contains('connection error') ||
+          e.toString().contains('XMLHttpRequest') ||
+          e.toString().contains('network')) {
+        errorMessage =
+            'خطأ في الاتصال بالإنترنت. تحقق من الاتصال وحاول مرة أخرى.';
+      } else if (e.toString().contains('timeout') ||
+          e.toString().contains('انتهت مهلة')) {
+        errorMessage =
+            'انتهت مهلة الاتصال. تحقق من سرعة الإنترنت وحاول مرة أخرى.';
+      } else if (e.toString().contains('401')) {
+        errorMessage = 'خطأ في التوثيق. قم بتسجيل الدخول مرة أخرى.';
+      } else if (e.toString().contains('403')) {
+        errorMessage = 'ليس لديك صلاحية لتنفيذ هذا الإجراء.';
+      } else if (e.toString().contains('404')) {
+        errorMessage = 'الطلب غير موجود أو تم حذفه.';
+      } else if (e.toString().contains('500')) {
+        errorMessage = 'خطأ في الخادم. حاول مرة أخرى لاحقاً.';
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ $errorMessage'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'حاول مرة أخرى',
+              textColor: Colors.white,
+              onPressed: () => _completeDelivery(orderId),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _loadUserDataAndOrders() async {
     try {
-      // Get user data from SharedPreferences (stored during login)
       final prefs = await SharedPreferences.getInstance();
-      
+
       final userName = prefs.getString('name') ?? 'غير محدد';
       final userPhone = prefs.getString('phone') ?? widget.phone;
       final userRole = prefs.getInt('role') ?? 0;
@@ -49,17 +236,9 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
         };
       });
 
-      print('✅ تم تحميل بيانات المستخدم من SharedPreferences:');
-      print('📱 الاسم: $userName');
-      print('☎️ الهاتف: $userPhone');
-      print('👤 النوع: ${userRole == 0 ? 'أدمن' : userRole == 1 ? 'محل' : 'دليفري'}');
-      print('🆔 معرف المستخدم: $userId');
-
-      // Load orders for this delivery user
       await _loadOrders();
-      
     } catch (e) {
-      print('❌ خطأ في تحميل بيانات المستخدم: $e');
+      debugPrint('❌ خطأ في تحميل بيانات المستخدم: $e');
       setState(() {
         userData = null;
         isLoading = false;
@@ -79,28 +258,46 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
     try {
       final orderService = OrderService();
       final response = await orderService.getAllOrders();
-      
+
       if (response.statusCode == 200 && response.data != null) {
         final responseData = response.data['data'];
         if (responseData != null && responseData['data'] is List) {
-          final allOrders = List<Map<String, dynamic>>.from(responseData['data']);
-          
-          // Filter orders: status = 2 AND delivery_id matches logged-in user id
+          final allOrders = List<Map<String, dynamic>>.from(
+            responseData['data'],
+          );
+
           final filteredOrders = allOrders.where((order) {
             final orderStatus = order['status'];
-            final orderDeliveryId = order['delivery_id'];
             final currentUserId = userData!['id'];
-            
-            return orderStatus == 2 && orderDeliveryId == currentUserId;
+            final currentUserRole = userData!['role'];
+
+            // فلترة الطلبات بحالة مقبولة أو جارية فقط
+            if (orderStatus != 1 && orderStatus != 2) {
+              return false;
+            }
+
+            if (currentUserRole == 1) {
+              // للسائقين: عرض الطلبات التي تم تعيينهم لها
+              final orderDeliveryId = order['delivery_id'];
+              return orderDeliveryId != null &&
+                  orderDeliveryId == currentUserId;
+            } else if (currentUserRole == 2) {
+              // للمحلات: عرض الطلبات التي أضافوها
+              final orderUserAddId = order['user_add_id'];
+              return orderUserAddId != null && orderUserAddId == currentUserId;
+            } else {
+              // للأدمن: عرض جميع الطلبات المقبولة والجارية
+              return true;
+            }
           }).toList();
-          
+
           setState(() {
-            orders = filteredOrders;
+            this.allOrders.clear();
+            this.allOrders.addAll(filteredOrders);
+            orders = List.from(filteredOrders);
             isLoading = false;
           });
-          
-          print('✅ تم تحميل ${allOrders.length} طلب إجمالي');
-          print('✅ تم فلترة ${filteredOrders.length} طلب للدليفري رقم ${userData!['id']} بحالة 2');
+
           return;
         }
       }
@@ -110,8 +307,8 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
         isLoading = false;
       });
     } catch (e) {
-      print('❌ خطأ في تحميل الطلبات: $e');
       setState(() {
+        allOrders = [];
         orders = [];
         isLoading = false;
       });
@@ -143,7 +340,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
                 fontSize: 18,
               ),
             ),
-            backgroundColor: Colors.blue,
+            backgroundColor: Colors.blue.shade700,
             elevation: 0,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
@@ -169,7 +366,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
                 fontSize: 18,
               ),
             ),
-            backgroundColor: Colors.blue,
+            backgroundColor: Colors.blue.shade700,
             elevation: 0,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
@@ -216,7 +413,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
               fontSize: 18,
             ),
           ),
-          backgroundColor: Colors.blue,
+          backgroundColor: Colors.blue.shade700,
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
@@ -229,85 +426,25 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
           },
           child: Column(
             children: [
-              // User Info Card
-              Card(
-                margin: const EdgeInsets.all(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 25,
-                        backgroundColor: Colors.blue,
-                        child: Icon(
-                          userData!['role'] == 0 ? Icons.admin_panel_settings :
-                          userData!['role'] == 1 ? Icons.store :
-                          Icons.delivery_dining,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              userData!['name'] ?? 'غير محدد',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              userData!['phone'] ?? 'غير محدد',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: userData!['role'] == 0 ? Colors.purple :
-                                 userData!['role'] == 1 ? Colors.blue :
-                                 Colors.orange,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          userData!['role'] == 0 ? 'أدمن' :
-                          userData!['role'] == 1 ? 'محل' :
-                          'دليفري',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Search bar
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.all(12),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blueAccent),
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.blue.shade300),
                   ),
                   child: TextField(
                     controller: _searchController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'ابحث برقم الطلب أو اسم العميل...',
                       border: InputBorder.none,
-                      icon: Icon(Icons.search, color: Colors.blueAccent),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Colors.blue.shade500,
+                      ),
+                      hintStyle: TextStyle(color: Colors.grey.shade500),
                     ),
                     onChanged: (value) {
                       setState(() {
@@ -320,10 +457,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
 
               const SizedBox(height: 12),
 
-              // Orders List
-              Expanded(
-                child: _buildOrdersList(),
-              ),
+              Expanded(child: _buildOrdersList()),
             ],
           ),
         ),
@@ -332,15 +466,16 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
   }
 
   Widget _buildOrdersList() {
-    // Filter orders based on search
-    final filteredOrders = orders.where((order) {
+    final filteredOrders = allOrders.where((order) {
       if (searchQuery.isEmpty) return true;
-      
+
       final orderId = order['id']?.toString().toLowerCase() ?? '';
-      final customerName = order['customer_name']?.toString().toLowerCase() ?? '';
+      final customerName =
+          order['customer_name']?.toString().toLowerCase() ?? '';
       final searchLower = searchQuery.toLowerCase();
-      
-      return orderId.contains(searchLower) || customerName.contains(searchLower);
+
+      return orderId.contains(searchLower) ||
+          customerName.contains(searchLower);
     }).toList();
 
     if (filteredOrders.isEmpty) {
@@ -349,13 +484,17 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              searchQuery.isNotEmpty ? Icons.search_off : Icons.inventory_2_outlined,
+              searchQuery.isNotEmpty
+                  ? Icons.search_off
+                  : Icons.inventory_2_outlined,
               size: 64,
-              color: Colors.grey,
+              color: Colors.grey.shade400,
             ),
             const SizedBox(height: 16),
             Text(
-              searchQuery.isNotEmpty ? 'لا توجد نتائج للبحث' : 'لا توجد طلبات جارية حالياً',
+              searchQuery.isNotEmpty
+                  ? 'لا توجد نتائج للبحث'
+                  : 'لا توجد طلبات جارية حالياً',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -364,11 +503,10 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
             ),
             const SizedBox(height: 8),
             Text(
-              searchQuery.isNotEmpty ? 'جرب البحث بكلمات أخرى' : 'ستظهر هنا الطلبات المقبولة للتوصيل',
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
+              searchQuery.isNotEmpty
+                  ? 'جرب البحث بكلمات أخرى'
+                  : 'ستظهر هنا الطلبات المقبولة والجارية',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               textAlign: TextAlign.center,
             ),
           ],
@@ -388,114 +526,249 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
 
   Widget _buildOrderCard(Map<String, dynamic> order) {
     final addedBy = order['added_by'] as Map<String, dynamic>?;
-    
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    final delivery = order['delivery'] as Map<String, dynamic>?;
+    final currentUserRole = userData!['role'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Order Header
-            Row(
+      clipBehavior: Clip.hardEdge,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Order Header
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade50, Colors.blue.shade100],
+              ),
+            ),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Icon(
-                        Icons.receipt_long,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'طلب رقم ${order['id']}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
-                    ),
-                  ],
+                Text(
+                  'طلب رقم ${order['id']}',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[800]!,
+                  ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    borderRadius: BorderRadius.circular(12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
                   ),
-                  child: const Text(
-                    'جاري التوصيل',
-                    style: TextStyle(
+                  decoration: BoxDecoration(
+                    color: order['status'] == 1
+                        ? Colors.orange.shade500
+                        : Colors.green.shade500,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    order['status'] == 1 ? 'مقبول' : 'جاري التوصيل',
+                    style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ],
             ),
-            
-            const SizedBox(height: 12),
-            
-            // Customer Info - Simplified
-            Row(
+          ),
+
+          // Store Info Section (For Delivery Users)
+          if (currentUserRole == 1 && addedBy != null)
+            _buildCleanSection(
+              title: "معلومات المتجر",
+              color: Colors.blue.shade50,
+              borderColor: Colors.blue.shade100,
               children: [
-                Icon(Icons.person, color: Colors.blue, size: 16),
+                _buildNamePhoneRow(
+                  addedBy['name'] ?? 'غير محدد',
+                  addedBy['phone'] ?? 'غير محدد',
+                ),
+                _buildAddressRow(addedBy['address'] ?? 'غير محدد'),
+              ],
+            ),
+
+          // Customer Info Section (Always shown)
+          _buildCleanSection(
+            title: "معلومات العميل",
+            color: Colors.green.shade50,
+            borderColor: Colors.green.shade100,
+            children: [
+              _buildNamePhoneRow(
+                order['customer_name'] ?? 'غير محدد',
+                order['customer_phone'] ?? 'غير محدد',
+              ),
+              _buildAddressRow(order['customer_address'] ?? 'غير محدد'),
+            ],
+          ),
+
+          // Delivery Info Section (For Store Users)
+          if (currentUserRole == 2 && delivery != null)
+            _buildCleanSection(
+              title: "معلومات السائق",
+              color: Colors.orange.shade50,
+              borderColor: Colors.orange.shade100,
+              children: [
+                _buildNamePhoneRow(
+                  delivery['name'] ?? 'غير محدد',
+                  delivery['phone'] ?? 'غير محدد',
+                ),
+              ],
+            ),
+
+          // Delivery Fee Section
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              border: Border(
+                top: BorderSide(color: Colors.orange.shade200, width: 1),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'رسوم التوصيل:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.orange,
+                  ),
+                ),
+                Text(
+                  '${order['delivery_fee'] ?? '0'} جنيه',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange.shade800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Complete Delivery Button (For Delivery Users Only)
+          if (currentUserRole == 1)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              child: ElevatedButton(
+                onPressed: () => _completeDelivery(order['id']),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade600,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.check_circle, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'إكمال التوصيل',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCleanSection({
+    required String title,
+    required Color color,
+    required Color borderColor,
+    required List<Widget> children,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: color,
+        border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (title == "معلومات المتجر") ...[
+                Icon(Icons.store, size: 16, color: Colors.blue[800]!),
                 const SizedBox(width: 6),
+              ] else if (title == "معلومات العميل") ...[
+                Icon(Icons.person, size: 16, color: Colors.green[800]!),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue[800]!,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  // عرض الاسم والهاتف في سطر واحد
+  Widget _buildNamePhoneRow(String name, String phone) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          // الاسم مع label
+          Expanded(
+            flex: 3,
+            child: Row(
+              children: [
+                Text(
+                  'الاسم: ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
                 Expanded(
                   child: Text(
-                    order['customer_name'] ?? 'غير محدد',
+                    name,
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 6),
-            
-            // Phone
-            Row(
-              children: [
-                Icon(Icons.phone, color: Colors.grey, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  order['customer_phone'] ?? 'غير محدد',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 6),
-            
-            // Address
-            Row(
-              children: [
-                Icon(Icons.location_on, color: Colors.grey, size: 16),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    order['customer_address'] ?? 'غير محدد',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade700,
+                      color: Colors.black87,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -503,62 +776,87 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
                 ),
               ],
             ),
-            
-            // Store Info - Simplified
-            if (addedBy != null) ...[
-              const SizedBox(height: 8),
-              Divider(color: Colors.grey.shade300, height: 1),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.store, color: Colors.orange, size: 16),
-                  const SizedBox(width: 6),
-                  Text(
-                    'المحل: ${addedBy['name'] ?? 'غير محدد'}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.orange,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            
-            const SizedBox(height: 12),
-            
-            // Total Amount - Simplified
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          ),
+          const SizedBox(width: 8),
+          // الهاتف مع label
+          Expanded(
+            flex: 2,
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.attach_money, color: Colors.green, size: 16),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'المبلغ الإجمالي:',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
+                Text(
+                  'هاتف: ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _makePhoneCall(phone),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.blue.shade200,
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Text(
+                        phone,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.blue.shade700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
                       ),
                     ),
-                  ],
-                ),
-                Text(
-                  '${order['total'] ?? '0'} جنيه',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-
+  // عرض العنوان مع label
+  Widget _buildAddressRow(String address) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Text(
+            'العنوان: ',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              address,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

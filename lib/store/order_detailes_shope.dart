@@ -33,10 +33,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
   Future<void> _makePhoneCall(String phoneNumber) async {
     if (phoneNumber.isEmpty || phoneNumber == 'غير محدد') return;
 
-    final Uri launchUri = Uri(
-      scheme: 'tel',
-      path: phoneNumber,
-    );
+    final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
 
     if (await canLaunchUrl(launchUri)) {
       await launchUrl(launchUri);
@@ -94,15 +91,19 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
 
       // محاولة إكمال التوصيل مع retry logic
       final orderService = OrderService();
-      
+
       // محاولة أولى
       try {
-        final response = await orderService.changeOrderStatus(orderId, 3).timeout(
-          const Duration(seconds: 15),
-          onTimeout: () {
-            throw Exception('انتهت مهلة الاتصال. تحقق من الاتصال بالإنترنت.');
-          },
-        );
+        final response = await orderService
+            .changeOrderStatus(orderId, 3)
+            .timeout(
+              const Duration(seconds: 15),
+              onTimeout: () {
+                throw Exception(
+                  'انتهت مهلة الاتصال. تحقق من الاتصال بالإنترنت.',
+                );
+              },
+            );
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           if (mounted) {
@@ -114,7 +115,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
               ),
             );
           }
-          
+
           // التوجه لصفحة الهوم بعد إكمال التوصيل بنجاح
           await Future.delayed(const Duration(seconds: 1));
           if (mounted) {
@@ -131,14 +132,14 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
         }
       } catch (e) {
         debugPrint('❌ المحاولة الأولى فشلت: $e');
-        
+
         // محاولة ثانية بعد ثانيتين
         await Future.delayed(const Duration(seconds: 2));
-        
+
         try {
-          final response = await orderService.changeOrderStatus(orderId, 3).timeout(
-            const Duration(seconds: 20),
-          );
+          final response = await orderService
+              .changeOrderStatus(orderId, 3)
+              .timeout(const Duration(seconds: 20));
 
           if (response.statusCode == 200 || response.statusCode == 201) {
             if (mounted) {
@@ -150,7 +151,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
                 ),
               );
             }
-            
+
             // التوجه لصفحة الهوم بعد إكمال التوصيل بنجاح
             await Future.delayed(const Duration(seconds: 1));
             if (mounted) {
@@ -167,22 +168,23 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
           debugPrint('❌ المحاولة الثانية فشلت: $retryError');
           rethrow;
         }
-        
+
         rethrow;
       }
-
     } catch (e) {
       debugPrint('❌ خطأ في إكمال التوصيل: $e');
-      
+
       String errorMessage = 'خطأ في إكمال التوصيل';
-      
-      if (e.toString().contains('connection error') || 
+
+      if (e.toString().contains('connection error') ||
           e.toString().contains('XMLHttpRequest') ||
           e.toString().contains('network')) {
-        errorMessage = 'خطأ في الاتصال بالإنترنت. تحقق من الاتصال وحاول مرة أخرى.';
-      } else if (e.toString().contains('timeout') || 
-                 e.toString().contains('انتهت مهلة')) {
-        errorMessage = 'انتهت مهلة الاتصال. تحقق من سرعة الإنترنت وحاول مرة أخرى.';
+        errorMessage =
+            'خطأ في الاتصال بالإنترنت. تحقق من الاتصال وحاول مرة أخرى.';
+      } else if (e.toString().contains('timeout') ||
+          e.toString().contains('انتهت مهلة')) {
+        errorMessage =
+            'انتهت مهلة الاتصال. تحقق من سرعة الإنترنت وحاول مرة أخرى.';
       } else if (e.toString().contains('401')) {
         errorMessage = 'خطأ في التوثيق. قم بتسجيل الدخول مرة أخرى.';
       } else if (e.toString().contains('403')) {
@@ -277,7 +279,8 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
             if (currentUserRole == 1) {
               // للسائقين: عرض الطلبات التي تم تعيينهم لها
               final orderDeliveryId = order['delivery_id'];
-              return orderDeliveryId != null && orderDeliveryId == currentUserId;
+              return orderDeliveryId != null &&
+                  orderDeliveryId == currentUserId;
             } else if (currentUserRole == 2) {
               // للمحلات: عرض الطلبات التي أضافوها
               final orderUserAddId = order['user_add_id'];
@@ -437,7 +440,10 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
                     decoration: InputDecoration(
                       hintText: 'ابحث برقم الطلب أو اسم العميل...',
                       border: InputBorder.none,
-                      prefixIcon: Icon(Icons.search, color: Colors.blue.shade500),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Colors.blue.shade500,
+                      ),
                       hintStyle: TextStyle(color: Colors.grey.shade500),
                     ),
                     onChanged: (value) {
@@ -706,9 +712,7 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: color,
-        border: Border(
-          bottom: BorderSide(color: borderColor, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: borderColor, width: 1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -791,11 +795,17 @@ class _OrderDetailsScreenState extends State<order_detailes_shope> {
                   child: GestureDetector(
                     onTap: () => _makePhoneCall(phone),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.blue.shade50,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.shade200, width: 0.5),
+                        border: Border.all(
+                          color: Colors.blue.shade200,
+                          width: 0.5,
+                        ),
                       ),
                       child: Text(
                         phone,

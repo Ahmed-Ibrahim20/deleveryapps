@@ -6,7 +6,7 @@ import '../models/notification_model.dart';
 import '../services/overlay_notification_service.dart';
 import 'PendingUsersPage.dart';
 import 'SupportPage.dart';
-// import '../delevery/home_delevery.dart';
+import 'accepted_orders_page.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -390,6 +390,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
     print('🔍 DEBUG: notification.notifiableType = "${notification.notifiableType}"');
     print('🔍 DEBUG: notification.notifiableId = ${notification.notifiableId}');
     
+    // فحص إضافي للتشخيص
+    print('🔍 DEBUG: Is order notification? ${_isOrderNotification(notification)}');
+    print('🔍 DEBUG: Is user registration? ${_isUserRegistrationNotification(notification)}');
+    
     // تحديد الإشعار كمقروء
     if (!notification.isRead) {
       provider.markAsRead(notification.id);
@@ -440,14 +444,52 @@ class _NotificationsPageState extends State<NotificationsPage> {
       case 'order_accepted':
       case 'order_delivered':
       case 'order_cancelled':
-        // للطلبات، يمكن إضافة التنقل لصفحة الطلبات لاحقاً
+      case 'new_order':
+      case 'order_status_updated':
+      case 'delivery_completed':
+      case 'order_update':
+        // الانتقال لصفحة الطلبات الجارية
         print('📦 Order notification tapped: ${notification.type}');
-        _showNotificationDetails(notification);
-        break;
+        print('🔄 Navigating to AcceptedOrdersPage for order notification');
+        
+        // عرض رسالة تأكيد قصيرة
+        _overlayService.showInfoNotification(
+          'انتقال',
+          'جاري فتح صفحة الطلبات الجارية...',
+        );
+        
+        // التنقل لصفحة الطلبات الجارية
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AcceptedOrdersPage(),
+          ),
+        );
+        
+        print('✅ Navigation completed to AcceptedOrdersPage');
+        return; // إنهاء الدالة هنا لضمان عدم تنفيذ أي كود آخر
       case 'general':
-        // فحص إضافي للإشعارات العامة - ممكن تكون طلبات فتح حساب
-        print('🔍 General notification - checking title and message for user registration');
-        if (_isUserRegistrationNotification(notification)) {
+        // فحص إضافي للإشعارات العامة - ممكن تكون طلبات أو فتح حساب
+        print('🔍 General notification - checking title and message');
+        
+        // فحص إذا كان إشعار متعلق بالطلبات أولاً (له الأولوية)
+        if (_isOrderNotification(notification)) {
+          print('✅ Found order-related notification in general - navigating to AcceptedOrdersPage');
+          _overlayService.showInfoNotification(
+            'انتقال',
+            'جاري فتح صفحة الطلبات الجارية...',
+          );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AcceptedOrdersPage(),
+            ),
+          );
+          return;
+        }
+        
+        // فحص إذا كان إشعار فتح حساب
+        else if (_isUserRegistrationNotification(notification)) {
           print('✅ Found user registration in general notification - navigating to PendingUsersPage');
           _overlayService.showInfoNotification(
             'انتقال',
@@ -460,14 +502,36 @@ class _NotificationsPageState extends State<NotificationsPage> {
             ),
           );
           return;
-        } else {
+        }
+        
+        // إذا لم يكن أي من السابق، عرض تفاصيل الإشعار
+        else {
+          print('ℹ️ General notification - showing details');
           _showNotificationDetails(notification);
         }
         break;
       default:
-        // فحص إضافي لأي نوع إشعار - ممكن يكون طلب فتح حساب
-        print('ℹ️ Unknown notification type: ${notification.type} - checking if user registration');
-        if (_isUserRegistrationNotification(notification)) {
+        // فحص إضافي لأي نوع إشعار - ممكن يكون طلب فتح حساب أو طلب
+        print('ℹ️ Unknown notification type: ${notification.type} - checking content');
+        
+        // فحص إذا كان إشعار متعلق بالطلبات أولاً (له الأولوية)
+        if (_isOrderNotification(notification)) {
+          print('✅ Found order-related notification - navigating to AcceptedOrdersPage');
+          _overlayService.showInfoNotification(
+            'انتقال',
+            'جاري فتح صفحة الطلبات الجارية...',
+          );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AcceptedOrdersPage(),
+            ),
+          );
+          return;
+        }
+        
+        // فحص إذا كان إشعار طلب فتح حساب (بعد التأكد أنه ليس طلب توصيل)
+        else if (_isUserRegistrationNotification(notification)) {
           print('✅ Found user registration in unknown notification type - navigating to PendingUsersPage');
           _overlayService.showInfoNotification(
             'انتقال',
@@ -480,8 +544,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
             ),
           );
           return;
-        } else {
-          // عرض تفاصيل الإشعار للأنواع الأخرى
+        }
+        
+        // إذا لم يكن أي من السابق، عرض تفاصيل الإشعار
+        else {
           print('ℹ️ Showing details for notification type: ${notification.type}');
           _showNotificationDetails(notification);
         }
@@ -489,29 +555,125 @@ class _NotificationsPageState extends State<NotificationsPage> {
     }
   }
 
+  /// فحص إضافي للإشعارات لمعرفة إذا كانت متعلقة بالطلبات
+  bool _isOrderNotification(NotificationModel notification) {
+    final title = notification.title.toLowerCase();
+    final message = notification.message.toLowerCase();
+    
+    // البحث في العنوان والرسالة عن كلمات مفتاحية للطلبات
+    final orderKeywords = [
+      'طلب',
+      'توصيل',
+      'تسليم',
+      'قبول',
+      'رفض',
+      'إلغاء',
+      'order',
+      'delivery',
+      'accept',
+      'reject',
+      'cancel',
+      'delivered',
+      'created',
+      'تم قبول',
+      'تم رفض',
+      'تم التسليم',
+      'تم التوصيل',
+      'طلب جديد',
+      'طلب توصيل',
+      'new order',
+      'order accepted',
+      'order delivered',
+      'order cancelled',
+      'delivery completed',
+      'order status',
+      'حالة الطلب',
+      'تحديث الطلب',
+      'order update',
+      'بنجاح',
+      'successfully'
+    ];
+    
+    for (String keyword in orderKeywords) {
+      if (title.contains(keyword) || message.contains(keyword)) {
+        print('🔍 Found order keyword "$keyword" in notification');
+        return true;
+      }
+    }
+    
+    // فحص البيانات إذا كانت موجودة
+    if (notification.data != null) {
+      final dataString = notification.data.toString().toLowerCase();
+      
+      // فحص الكلمات المفتاحية في البيانات
+      for (String keyword in orderKeywords) {
+        if (dataString.contains(keyword)) {
+          print('🔍 Found order keyword "$keyword" in notification data');
+          return true;
+        }
+      }
+      
+      // فحص إضافي: إذا كانت البيانات تحتوي على حقول طلب
+      final data = notification.data!;
+      if (data.containsKey('order_id') || 
+          data.containsKey('delivery_fee') || 
+          data.containsKey('customer_name') ||
+          data.containsKey('delivery_address') ||
+          data.containsKey('order_status')) {
+        print('🔍 Found order data fields in notification - likely order notification');
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
   /// فحص إضافي للإشعارات العامة لمعرفة إذا كانت طلبات فتح حساب
   bool _isUserRegistrationNotification(NotificationModel notification) {
     final title = notification.title.toLowerCase();
     final message = notification.message.toLowerCase();
     
+    // أولاً: التأكد أنه ليس إشعار طلب توصيل
+    final orderExclusions = [
+      'تم قبول',
+      'تم توصيل',
+      'تم تسليم',
+      'تم إلغاء',
+      'طلب توصيل',
+      'order accepted',
+      'order delivered',
+      'order cancelled',
+      'delivery',
+      'توصيل',
+      'تسليم'
+    ];
+    
+    for (String exclusion in orderExclusions) {
+      if (title.contains(exclusion) || message.contains(exclusion)) {
+        print('🔍 Found order exclusion keyword "$exclusion" - not user registration');
+        return false;
+      }
+    }
+    
     // البحث في العنوان والرسالة عن كلمات مفتاحية لطلبات فتح الحساب
     final keywords = [
       'تسجيل',
-      'حساب',
-      'فتح',
+      'حساب جديد',
+      'فتح حساب',
       'مستخدم جديد',
-      'طلب فتح',
+      'طلب فتح حساب',
       'register',
-      'account',
+      'new account',
+      'account registration',
       'new user',
       'signup',
-      'user',
-      'pending'
+      'user registration',
+      'pending user'
     ];
     
     for (String keyword in keywords) {
       if (title.contains(keyword) || message.contains(keyword)) {
-        print('🔍 Found keyword "$keyword" in notification');
+        print('🔍 Found user registration keyword "$keyword" in notification');
         return true;
       }
     }
@@ -528,15 +690,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
         }
       }
       
-      // فحص إضافي: إذا كانت البيانات تحتوي على حقول مستخدم
+      // فحص إضافي: إذا كانت البيانات تحتوي على حقول مستخدم (وليس طلب)
       final data = notification.data!;
-      if (data.containsKey('name') || 
-          data.containsKey('phone') || 
-          data.containsKey('email') ||
-          data.containsKey('role') ||
+      
+      // تأكد أنه ليس طلب توصيل أولاً
+      if (data.containsKey('order_id') || 
+          data.containsKey('delivery_fee') || 
+          data.containsKey('customer_name') ||
+          data.containsKey('delivery_address') ||
+          data.containsKey('order_status')) {
+        print('🔍 Found order data fields - not user registration');
+        return false;
+      }
+      
+      // فحص حقول المستخدم فقط إذا لم تكن هناك حقول طلب
+      if (data.containsKey('role') ||
           data.containsKey('is_approved') ||
-          data.containsKey('store_name')) {
-        print('🔍 Found user data fields in notification - likely user registration');
+          (data.containsKey('email') && !data.containsKey('customer_name'))) {
+        print('🔍 Found user registration data fields in notification');
         return true;
       }
     }

@@ -8,7 +8,6 @@ import '../store/Profileshope.dart';
 import './order_screen.dart';
 import './ReportDelevery.dart';
 import './nofication_delivery.dart';
-import '../services/Api/order_service.dart';
 import '../services/Api/user_service.dart';
 import '../providers/notification_provider.dart';
 import '../models/notification_model.dart';
@@ -25,9 +24,6 @@ class DriverHomePage extends StatefulWidget {
 class _DriverHomePageState extends State<DriverHomePage> {
   String name = 'مرحباً، مستخدم';
   Map<String, dynamic>? userData;
-  int newOrdersCount = 0;
-  int currentOrdersCount = 0;
-  int completedOrdersCount = 0;
   bool isLoading = true;
 
   // متغير للتحكم في حالة النشاط
@@ -37,7 +33,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
   @override
   void initState() {
     super.initState();
-    _loadUserDataAndCounts();
+    _loadUserData();
 
     // تهيئة الإشعارات
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -54,7 +50,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
     });
   }
 
-  Future<void> _loadUserDataAndCounts() async {
+  Future<void> _loadUserData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userName = prefs.getString('name') ?? 'مستخدم';
@@ -82,9 +78,8 @@ class _DriverHomePageState extends State<DriverHomePage> {
         };
         // تحديث حالة النشاط الحالية بناءً على ما تم حفظه
         isActiveNow = finalActiveStatus;
+        isLoading = false;
       });
-
-      await _loadOrderCounts();
     } catch (e) {
       print('❌ خطأ في تحميل بيانات المستخدم: $e');
       setState(() {
@@ -93,59 +88,6 @@ class _DriverHomePageState extends State<DriverHomePage> {
     }
   }
 
-  Future<void> _loadOrderCounts() async {
-    if (userData == null) return;
-
-    try {
-      final orderService = OrderService();
-      final response = await orderService.getAllOrders();
-
-      if (response.statusCode == 200 && response.data != null) {
-        final responseData = response.data['data'];
-        if (responseData != null && responseData['data'] is List) {
-          final allOrders =
-              List<Map<String, dynamic>>.from(responseData['data']);
-          final currentUserId = userData!['id'];
-
-          int newCount = 0;
-          int currentCount = 0;
-          int completedCount = 0;
-
-          for (final order in allOrders) {
-            final orderStatus = order['status'];
-            final orderDeliveryId = order['delivery_id'];
-
-            switch (orderStatus) {
-              case 0: // طلبات جديدة
-                newCount++;
-                break;
-              case 1: // طلبات قيد التنفيذ
-                if (orderDeliveryId == currentUserId) {
-                  currentCount++;
-                }
-                break;
-              case 2: // طلبات مكتملة
-                if (orderDeliveryId == currentUserId) {
-                  completedCount++;
-                }
-                break;
-            }
-          }
-          setState(() {
-            newOrdersCount = newCount;
-            currentOrdersCount = currentCount;
-            completedOrdersCount = completedCount;
-            isLoading = false;
-          });
-        }
-      }
-    } catch (e) {
-      print('❌ خطأ في تحميل عدد الطلبات: $e');
-      setState(() {
-        isLoading = false;
-      });
-    }
-  }
 
   // دالة تحديث حالة النشاط باستخدام API
   Future<void> _toggleActiveStatus() async {
@@ -295,7 +237,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
         ),
         body: SafeArea(
           child: RefreshIndicator(
-            onRefresh: _loadUserDataAndCounts,
+            onRefresh: _loadUserData,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
@@ -312,7 +254,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                               _buildCard(
                                 context: context,
                                 title: 'الطلبات الجديدة',
-                                subtitle: '$newOrdersCount طلب جديد',
+                                subtitle: 'طلبات جديدة',
                                 icon: Icons.sync,
                                 color: Colors.blue,
                               ),
@@ -320,7 +262,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                               _buildCard(
                                 context: context,
                                 title: 'الطلبات السابقة',
-                                subtitle: '$completedOrdersCount طلب مكتمل',
+                                subtitle: 'طلبات سابقة',
                                 icon: Icons.description_outlined,
                                 color: Colors.green,
                               ),
@@ -334,7 +276,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                               _buildCard(
                                 context: context,
                                 title: 'الطلبات الجارية',
-                                subtitle: '$currentOrdersCount طلب جاري',
+                                subtitle: 'طلبات جارية',
                                 icon: Icons.inventory_2_outlined,
                                 color: Colors.amber,
                               ),

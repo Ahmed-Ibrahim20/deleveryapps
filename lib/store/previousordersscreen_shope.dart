@@ -374,7 +374,7 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'ابحث برقم الطلب أو اسم العميل...',
+                    hintText: 'ابحث برقم الطلب أو اسم العميل أو اسم المتجر...',
                     hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
                     border: InputBorder.none,
                     icon: Icon(Icons.search, color: Colors.grey.shade600, size: 18),
@@ -593,11 +593,18 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
         final customerName = order['customer_name']?.toString().toLowerCase() ?? '';
         final customerPhone = order['customer_phone']?.toString().toLowerCase() ?? '';
         final customerAddress = order['customer_address']?.toString().toLowerCase() ?? '';
+        final storeName = order['store_name']?.toString().toLowerCase() ?? '';
+        final addedBy = order['added_by'] as Map<String, dynamic>?;
+        final addedByStoreName = addedBy?['store_name']?.toString().toLowerCase() ?? '';
+        final addedByName = addedBy?['name']?.toString().toLowerCase() ?? '';
 
         return orderId.contains(searchLower) ||
             customerName.contains(searchLower) ||
             customerPhone.contains(searchLower) ||
-            customerAddress.contains(searchLower);
+            customerAddress.contains(searchLower) ||
+            storeName.contains(searchLower) ||
+            addedByStoreName.contains(searchLower) ||
+            addedByName.contains(searchLower);
       }).toList();
     }
 
@@ -757,8 +764,8 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
             ],
           ),
           
-          // Store/Driver Info
-          if (currentUserRole == 1 && addedBy != null) ...[
+          // Store Info (For Delivery Users)
+          if (currentUserRole == 1) ...[
             const SizedBox(height: 6),
             Row(
               children: [
@@ -766,14 +773,14 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    addedBy['name'] ?? 'غير محدد',
+                    order['store_name'] ?? addedBy?['store_name'] ?? addedBy?['name'] ?? 'اسم المتجر غير متوفر',
                     style: TextStyle(fontSize: 11, color: Colors.orange.shade700),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(
-                  onTap: () => _makePhoneCall(addedBy['phone'] ?? ''),
+                  onTap: () => _makePhoneCall(order['store_phone'] ?? addedBy?['phone'] ?? ''),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     decoration: BoxDecoration(
@@ -781,7 +788,7 @@ class _PreviousOrdersScreenState extends State<PreviousOrdersScreenShope> {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      addedBy['phone'] ?? 'غير محدد',
+                      order['store_phone'] ?? addedBy?['phone'] ?? 'غير محدد',
                       style: TextStyle(
                         fontSize: 10,
                         color: Colors.orange.shade700,

@@ -127,36 +127,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  void _confirmDeleteAccount(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('تأكيد حذف الحساب'),
-        content: const Text('هل أنت متأكد أنك تريد حذف حسابك نهائيًا؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
 
-              // Show confirmation that account deletion is not implemented yet
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('ميزة حذف الحساب غير متوفرة حالياً'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('نعم، احذف'),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
@@ -358,18 +329,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 title: const Text('تسجيل الخروج'),
                                 onTap: () => _logout(context),
                               );
-                            case 3:
-                              return ListTile(
-                                leading: const Icon(
-                                  Icons.delete_forever,
-                                  color: Colors.red,
-                                ),
-                                title: const Text(
-                                  'حذف الحساب',
-                                  style: TextStyle(color: Colors.red),
-                                ),
-                                onTap: () => _confirmDeleteAccount(context),
-                              );
+                            
                             default:
                               return const SizedBox.shrink();
                           }
